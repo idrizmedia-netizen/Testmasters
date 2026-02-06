@@ -1,26 +1,38 @@
-# Testlarni chiqarish
-    for i, q_item in enumerate(questions[subject]):
-        st.write(f"{i+1}. {q_item['q']}")
-        ans = st.radio(f"Javobni tanlang ({i}):", q_item['options'], key=f"q{i}")
-        user_answers.append(ans)
-        if ans == q_item['a']:
+if name:
+    st.divider()
+    st.subheader(f"Yo'nalish: {subject}")
+    
+    score = 0
+    # Testlarni ko'rsatish
+    for i, item in enumerate(questions[subject]):
+        st.write(f"{i+1}. {item['q']}")
+        ans = st.radio(f"Javobni tanlang:", item['options'], key=f"q_{subject}_{i}")
+        if ans == item['a']:
             score += 1
-
-    # Natijani jo'natish
-    if st.button("Testni yakunlash"):
-        # Jadvalga ma'lumot tayyorlash
-        new_data = pd.DataFrame([{"Ism": name, "Fan": subject, "Natija": f"{score}/10"}])
-        
-        # Google Sheets'ga yozish (URL ni o'zingizniki bilan almashtiring)
-        sheet_url = "https://docs.google.com/spreadsheets/d/1zNTrtJwVzR0X07v6oKqf7324..." # O'zingizning URLingizni qo'ying
-        
+    
+    st.divider()
+    
+    # Natijani yuborish tugmasi
+    if st.button("Natijani bazaga yuborish"):
         try:
-            # Mavjud ma'lumotlarni olish va yangisini qo'shish
-            existing_data = conn.read(spreadsheet=sheet_url)
-            updated_data = pd.concat([existing_data, new_data], ignore_index=True)
-            conn.update(spreadsheet=sheet_url, data=updated_data)
+            # Yangi natija qatori
+            new_row = pd.DataFrame([{"Ism": name, "Fan": subject, "Ball": f"{score}/10"}])
             
-            st.success(f"Tabriklaymiz {name}! Natijangiz saqlandi: {score}/10")
+            # Google Sheets'dan eski ma'lumotlarni o'qish
+            # URL qismini o'zingizning Google Sheets IDingiz bilan almashtirishni unutmang
+            sheet_url = "https://docs.google.com/spreadsheets/d/1zNTrtJwVzR0X07v6oKqf7324..." 
+            
+            df = conn.read(spreadsheet=sheet_url)
+            updated_df = pd.concat([df, new_row], ignore_index=True)
+            
+            # Yangilangan jadvalni qayta yozish
+            conn.update(spreadsheet=sheet_url, data=updated_df)
+            
+            st.success(f"Rahmat, {name}! Natijangiz ({score}/10) muvaffaqiyatli saqlandi.")
             st.balloons()
+            
         except Exception as e:
             st.error(f"Xatolik yuz berdi: {e}")
+            st.warning("Eslatma: Google Sheets 'Public' bo'lishi va Streamlit Secrets sozlangan bo'lishi kerak.")
+else:
+    st.warning("Davom etish uchun ismingizni yozing.")
