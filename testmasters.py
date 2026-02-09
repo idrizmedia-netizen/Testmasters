@@ -8,18 +8,17 @@ import io
 # 1. Sahifa sozlamalari
 st.set_page_config(page_title="Smart Test Masters Pro", layout="centered")
 
-# 2. Google Sheets ulanishi
+# 2. Google Sheets ulanishi (Siz yuborgan havola)
 conn = st.connection("gsheets", type=GSheetsConnection)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkF_H2yIO42KIBA8G5b0B4U/edit"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit?usp=sharing"
 
 # --- 3. CANVA USLUBIDAGI SERTIFIKAT FUNKSIYASI ---
 def create_certificate(name, score_text, subject):
     W, H = 1200, 850
-    # Oq fon (Canva uslubi)
-    img = Image.new('RGB', (W, H), color=(255, 255, 255))
+    img = Image.new('RGB', (255, 255, 255), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
     
-    # DIZAYN: Oltinrang bezaklar
+    # Oltinrang bezaklar
     gold_color = (197, 160, 82) 
     draw.rectangle([60, 60, 1140, 790], outline=gold_color, width=2)
     
@@ -40,9 +39,9 @@ def create_certificate(name, score_text, subject):
     except:
         f_title = f_sub = f_name = f_text = f_dir = ImageFont.load_default()
 
-    # --- ELEMENTLAR KETMA-KETLIGI (HAMMASI MARKAZDA) ---
+    # --- ELEMENTLARNI MARKAZLASHTIRISH ---
     
-    # 1. LOGOTIP (Tepada markazda)
+    # 1. LOGOTIP
     try:
         logo = Image.open("logo.jpg").convert("RGBA").resize((150, 150))
         img.paste(logo, (int(W/2 - 75), 90), logo)
@@ -55,19 +54,18 @@ def create_certificate(name, score_text, subject):
     # 3. ISM
     draw.text((W/2, 460), name.upper(), fill=(30, 30, 30), font=f_name, anchor="mm")
     
-    # 4. TAVSIF VA FAN
+    # 4. TAVSIF
     info_text = f"'{subject}' fani bo'yicha o'tkazilgan test sinovlarida\nmuvaffaqiyatli ishtirok etib, yuqori natija ko'rsatgani uchun."
     draw.multiline_text((W/2, 580), info_text, fill=(60, 60, 60), font=f_text, anchor="mm", align="center")
     
     # 5. NATIJA
     draw.text((W/2, 670), f"NATIJA: {score_text}", fill=(46, 125, 50), font=f_sub, anchor="mm")
 
-    # 6. IMZO VA DIREKTOR (PASTDA MARKAZDA)
+    # 6. IMZO VA DIREKTOR (MARKAZDA)
     line_y = 760
     draw.line([(W/2 - 180, line_y), (W/2 + 180, line_y)], fill=gold_color, width=2)
     draw.text((W/2, line_y + 35), "Direktor: Normurodov Izzatillo", fill=(30, 30, 30), font=f_dir, anchor="mm")
 
-    # Imzoni chiziq ustiga qo'yish
     try:
         sig = Image.open("signature.jpg").convert("RGBA")
         datas = sig.getdata()
@@ -82,61 +80,78 @@ def create_certificate(name, score_text, subject):
         img.paste(sig, (int(W/2 - 130), line_y - 110), sig)
     except: pass
 
-    # 7. SANA (O'ng pastda)
+    # 7. SANA (O'NGDA)
     draw.text((1100, 780), f"Sana: {time.strftime('%d.%m.%Y')}", fill="gray", font=f_dir, anchor="rs")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-# --- 4. ILOVA MANTIQI (USER CHEKLOVI BILAN) ---
-if 'cert_file' not in st.session_state: st.session_state.cert_file = None
-if 'run' not in st.session_state: st.session_state.run = False
-
-# Ma'lumotlarni yuklash
+# --- 4. ASOSIY MANTIQ ---
 try:
     q_df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
     s_df = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
     u_df = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
-    active_sub = s_df.loc[s_df['Parameter'] == 'ActiveSubject', 'Value'].values[0]
-except:
-    st.error("Jadval varaqlari (Questions, Settings, Users) xato!")
+    
+    # Aktiv fanni aniqlash
+    active_sub_list = s_df.loc[s_df['Parameter'] == 'ActiveSubject', 'Value'].values
+    active_sub = active_sub_list[0] if len(active_sub_list) > 0 else "Noma'lum"
+except Exception as e:
+    st.error(f"Ma'lumotlar bazasiga ulanishda xato: {e}")
     st.stop()
 
-st.title("🎓 Smart Test Masters Pro")
+st.title(f"🎓 {active_sub} fanidan onlayn test")
 
-u_name = st.text_input("Ism-familiyangiz:").strip()
+if 'cert_file' not in st.session_state: st.session_state.cert_file = None
+if 'test_started' not in st.session_state: st.session_state.test_started = False
 
-if u_name:
-    if u_name in u_df['Ism'].values:
-        st.warning("Siz test topshirgansiz.")
+user_name = st.text_input("Ism-familiyangizni kiriting:").strip()
+
+if user_name:
+    if user_name in u_df['Ism'].values:
+        st.warning("Siz avval test topshirgansiz. Natija bitta foydalanuvchi uchun bir marta qabul qilinadi.")
     else:
-        if st.button("Testni boshlash"): st.session_state.run = True
-        
-        if st.session_state.run:
+        if not st.session_state.test_started:
+            if st.button("Testni boshlash"):
+                st.session_state.test_started = True
+                st.rerun()
+
+        if st.session_state.test_started:
             with st.form("test_form"):
-                questions = q_df[q_df['Fan'] == active_sub].sample(n=30)
+                subject_qs = q_df[q_df['Fan'] == active_sub]
+                if len(subject_qs) < 30:
+                    questions = subject_qs
+                else:
+                    questions = subject_qs.sample(n=30)
+                
                 user_answers = {}
                 for i, (idx, row) in enumerate(questions.iterrows()):
-                    st.write(f"**{i+1}. {row['Savol']}**")
-                    user_answers[idx] = st.radio("Javob:", [row['A'], row['B'], row['C'], row['D']], key=idx)
+                    st.markdown(f"**{i+1}. {row['Savol']}**")
+                    user_answers[idx] = st.radio(f"Javobni tanlang ({i+1}):", [row['A'], row['B'], row['C'], row['D']], key=f"q_{idx}")
                 
-                if st.form_submit_button("Tugatish"):
+                if st.form_submit_button("Testni yakunlash"):
                     score = sum(1 for idx, row in questions.iterrows() if str(user_answers[idx]) == str(row['Javob']))
                     
-                    # Foydalanuvchini bazaga qo'shish
-                    new_data = pd.concat([u_df, pd.DataFrame([{"Ism": u_name}])], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, data=new_data, worksheet="Users")
+                    # Foydalanuvchini ro'yxatga qo'shish
+                    new_user = pd.DataFrame([{"Ism": user_name}])
+                    updated_users = pd.concat([u_df, new_user], ignore_index=True)
+                    conn.update(spreadsheet=SHEET_URL, data=updated_users, worksheet="Users")
                     
+                    # Sertifikat sharti: 20 tadan ko'p (21 va undan yuqori)
                     if score > 20:
-                        st.session_state.cert_file = create_certificate(u_name, f"{score}/30", active_sub)
+                        st.success(f"Tabriklaymiz! Natijangiz: {score}/30")
+                        st.session_state.cert_file = create_certificate(user_name, f"{score}/{len(questions)}", active_sub)
                         st.balloons()
                     else:
-                        st.error(f"Natija: {score}/30. Sertifikat uchun 21 ball kerak.")
-                    st.session_state.run = False
+                        st.error(f"Siz {score} ball to'pladingiz. Sertifikat olish uchun kamida 21 ball kerak.")
+                    
+                    st.session_state.test_started = False
+                    st.rerun()
 
-# Natijani chiqarish
 if st.session_state.cert_file:
-    st.image(st.session_state.cert_file)
-    if st.sidebar.text_input("Admin Parol:", type="password") == "Izzat06":
-        st.download_button("📥 Yuklab olish", st.session_state.cert_file, "Sertifikat.png")
+    st.image(st.session_state.cert_file, caption="Sizning sertifikatingiz")
+    admin_pass = st.sidebar.text_input("Yuklab olish uchun parolni kiriting:", type="password")
+    if admin_pass == "Izzat06":
+        st.download_button("📥 Sertifikatni yuklab olish", st.session_state.cert_file, file_name=f"{user_name}_sertifikat.png", mime="image/png")
+    elif admin_pass:
+        st.sidebar.error("Parol noto'g'ri!")
