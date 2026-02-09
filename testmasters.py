@@ -2,96 +2,101 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import time
-import random
 
 # 1. Sahifa sozlamalari
-st.set_page_config(page_title="Smart Test System", layout="centered")
+st.set_page_config(page_title="Test Masters Pro", layout="centered")
 
-# 2. Google Sheets ulanishi
+# 2. Ulanish
 conn = st.connection("gsheets", type=GSheetsConnection)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit"
 
-# 3. Savollarni bazadan yuklab olish va aralashtirish
-@st.cache_data(ttl=60)
-def load_and_shuffle(subject_name):
-    # 'Questions' varag'idan hamma savollarni o'qiymiz
-    df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-    # Faqat tanlangan fanga tegishlisini ajratamiz
-    filtered_df = df[df['Fan'] == subject_name]
-    # Savollarni tasodifiy tartibda aralashtiramiz
-    shuffled_df = filtered_df.sample(frac=1).reset_index(drop=True)
-    return shuffled_df
+st.title("🎓 Smart Test Masters")
 
-st.title("🚀 Smart Test Masters")
+# 3. Savollarni yuklash
+def load_questions():
+    try:
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions", ttl=0)
+        return df
+    except Exception as e:
+        st.error(f"Jadval o'qilmadi: {e}")
+        return pd.DataFrame()
 
-# Foydalanuvchi ma'lumotlari
-name = st.text_input("To'liq ismingizni kiriting:")
+all_q = load_questions()
 
-# Fanlar ro'yxatini bazadan olish
-all_data = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-subjects_list = all_data['Fan'].unique()
-subject = st.selectbox("Imtihon topshiradigan fanni tanlang:", subjects_list)
+if not all_q.empty:
+    name = st.text_input("F.I.SH kiriting:")
+    subjects = all_q['Fan'].unique()
+    subject = st.selectbox("Fanni tanlang:", subjects)
 
-if name and subject:
-    # Savollarni yuklaymiz (faqat bir marta aralashtiriladi)
-    if 'current_test' not in st.session_state or st.session_state.test_subject != subject:
-        st.session_state.current_test = load_and_shuffle(subject)
-        st.session_state.test_subject = subject
-        st.session_state.start_time = time.time()
+    if name and subject:
+        # Savollarni bir marta yuklash va aralashtirish
+        if 'test_data' not in st.session_state or st.session_state.get('last_sub') != subject:
+            filtered = all_q[all_q['Fan'] == subject].sample(frac=1)
+            st.session_state.test_data = filtered
+            st.session_state.last_sub = subject
+            st.session_state.start_time = time.time()
 
-    q_df = st.session_state.current_test
-    
-    # --- TAYMER ---
-    time_limit = 120  # 2 daqiqa (xohlagancha o'zgartiring)
-    elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = int(time_limit - elapsed_time)
+        q_df = st.session_state.test_data
 
-    if remaining_time > 0:
-        st.sidebar.header("📊 Holat")
-        st.sidebar.metric("⏳ Qolgan vaqt", f"{remaining_time} sek")
-        
-        # Har 10 soniyada sahifani yangilash
-        if remaining_time % 10 == 0:
-            time.sleep(1)
-            st.rerun()
+        # --- TAYMER (5 daqiqa) ---
+        time_limit = 300 
+        elapsed = time.time() - st.session_state.start_time
+        remaining = int(time_limit - elapsed)
 
-        score = 0
-        user_answers = {}
-
-        with st.form("quiz_form"):
-            st.info(f"Diqqat {name}, sizda {len(q_df)} ta savol bor.")
+        if remaining > 0:
+            st.sidebar.metric("⏳ Qolgan vaqt", f"{remaining // 60}:{remaining % 60:02d}")
             
-            for i, row in q_df.iterrows():
-                st.write(f"**{i+1}. {row['Savol']}**")
-                options = [row['O1'], row['O2'], row['O3'], row['O4']]
-                # Javoblar variantlarini ham aralashtirish mumkin
-                user_answers[i] = st.radio(f"Variantlardan birini tanlang:", options, key=f"ans_{i}")
-                
-            submitted = st.form_submit_button("Testni yakunlash")
+            # Har 5 soniyada taymerni yangilash
+            if remaining % 5 == 0:
+                time.sleep(1)
+                st.rerun()
 
-            if submitted:
-                # Ballni hisoblash
+            with st.form("test_form"):
+                score = 0
                 for i, row in q_df.iterrows():
-                    if user_answers[i] == row['Javob']:
-                        score += 1
-                
-                try:
-                    # Natijani saqlash (Sheet1 ga)
-                    new_res = pd.DataFrame([{"Ism": name, "Fan": subject, "Ball": f"{score}/{len(q_df)}"}])
-                    results_df = conn.read(spreadsheet=SHEET_URL, worksheet="Sheet1")
-                    updated_results = pd.concat([results_df, new_res], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, data=updated_results, worksheet="Sheet1")
+                    st.write(f"### {i+1}-savol: {row['Savol']}")
                     
-                    st.success(f"Natijangiz saqlandi! Jami ball: {score}")
-                    st.balloons()
-                    # Test tugagach xotirani tozalash
-                    del st.session_state.current_test
-                    del st.session_state.start_time
-                except Exception as e:
-                    st.error(f"Xatolik: {e}")
-    else:
-        st.error("⌛ Vaqt tugadi! Natijangiz saqlanmadi.")
-        if st.button("Qayta urinish"):
-            del st.session_state.current_test
-            del st.session_state.start_time
-            st.rerun()
+                    # Variantlarni A, B, C, D formatida ko'rsatish
+                    options = {
+                        f"A) {row['A']}": row['A'],
+                        f"B) {row['B']}": row['B'],
+                        f"C) {row['C']}": row['C'],
+                        f"D) {row['D']}": row['D']
+                    }
+                    
+                    # Foydalanuvchi tanlovi
+                    user_choice_label = st.radio(
+                        "Javobni tanlang:", 
+                        options.keys(), 
+                        key=f"q_{i}", 
+                        index=None
+                    )
+                    
+                    # To'g'ri javobni tekshirish
+                    if user_choice_label:
+                        actual_answer = options[user_choice_label]
+                        if str(actual_answer).strip() == str(row['Javob']).strip():
+                            score += 1
+                
+                submitted = st.form_submit_button("Testni yakunlash va natijani yuborish")
+                
+                if submitted:
+                    try:
+                        # Natijani Sheet1 ga saqlash
+                        res = pd.DataFrame([{"Ism": name, "Fan": subject, "Ball": f"{score}/{len(q_df)}"}])
+                        old_res = conn.read(spreadsheet=SHEET_URL, worksheet="Sheet1")
+                        updated = pd.concat([old_res, res], ignore_index=True)
+                        conn.update(spreadsheet=SHEET_URL, data=updated, worksheet="Sheet1")
+                        
+                        st.success(f"Tabriklaymiz {name}! Natijangiz saqlandi: {score} ball")
+                        st.balloons()
+                        
+                        # Sessiyani tozalash
+                        for key in ['test_data', 'start_time', 'last_sub']:
+                            st.session_state.pop(key, None)
+                    except Exception as e:
+                        st.error(f"Natijani saqlashda xato: {e}")
+        else:
+            st.error("🛑 Vaqt tugadi! Test yopildi.")
+else:
+    st.warning("Savollar topilmadi. Jadvalingizda 'Questions' varag'i borligini tekshiring.")
