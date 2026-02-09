@@ -5,123 +5,138 @@ import time
 from PIL import Image, ImageDraw, ImageFont
 import io
 
+# 1. Sahifa sozlamalari
 st.set_page_config(page_title="Smart Test Masters Pro", layout="centered")
 
-# 1. Google Sheets ulanishi
+# 2. Google Sheets ulanishi
 conn = st.connection("gsheets", type=GSheetsConnection)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkF_H2yIO42KIBA8G5b0B4U/edit"
 
-# --- 2. PROFESSIONAL SERTIFIKAT FUNKSIYASI ---
+# --- 3. CANVA USLUBIDAGI SERTIFIKAT FUNKSIYASI ---
 def create_certificate(name, score_text, subject):
     W, H = 1200, 850
-    img = Image.new('RGB', (W, H), color=(10, 30, 60))
+    # Oq fon (Canva uslubi)
+    img = Image.new('RGB', (W, H), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
     
-    # Oltin ramkalar
-    draw.rectangle([30, 30, 1170, 820], outline=(212, 175, 55), width=15)
-    draw.rectangle([55, 55, 1145, 795], outline=(212, 175, 55), width=2)
+    # DIZAYN: Oltinrang bezaklar
+    gold_color = (197, 160, 82) 
+    draw.rectangle([60, 60, 1140, 790], outline=gold_color, width=2)
+    
+    # Burchaklardagi nafis hoshiyalar
+    offset, length = 60, 100
+    for i in [(offset, offset, 1, 1), (W-offset, offset, -1, 1), 
+              (offset, H-offset, 1, -1), (W-offset, H-offset, -1, -1)]:
+        draw.line([(i[0], i[1]), (i[0] + length*i[2], i[1])], fill=gold_color, width=12)
+        draw.line([(i[0], i[1]), (i[0], i[1] + length*i[3])], fill=gold_color, width=12)
 
     try:
         font_path = "Montserrat-Bold.ttf"
-        f_large = ImageFont.truetype(font_path, 100)
-        f_name = ImageFont.truetype(font_path, 80)
+        f_title = ImageFont.truetype(font_path, 100)
+        f_sub = ImageFont.truetype(font_path, 30)
+        f_name = ImageFont.truetype(font_path, 95)
         f_text = ImageFont.truetype(font_path, 35)
-        f_quote = ImageFont.truetype(font_path, 28)
-        f_dir = ImageFont.truetype(font_path, 30)
+        f_dir = ImageFont.truetype(font_path, 32)
     except:
-        f_large = f_name = f_text = f_quote = f_dir = ImageFont.load_default()
+        f_title = f_sub = f_name = f_text = f_dir = ImageFont.load_default()
 
-    # Logotip
+    # --- ELEMENTLAR KETMA-KETLIGI (HAMMASI MARKAZDA) ---
+    
+    # 1. LOGOTIP (Tepada markazda)
     try:
-        logo = Image.open("logo.png").convert("RGBA").resize((150, 150))
-        img.paste(logo, (100, 100), logo)
+        logo = Image.open("logo.jpg").convert("RGBA").resize((150, 150))
+        img.paste(logo, (int(W/2 - 75), 90), logo)
     except: pass
 
-    # Matnlar
-    draw.text((W/2, 180), "SERTIFIKAT", fill=(212, 175, 55), font=f_large, anchor="mm")
-    draw.text((W/2, 280), "BILIM VA MAHORAT UCHUN MUNOSIB TAQDIRLANADI", fill="white", font=f_text, anchor="mm")
-    draw.text((W/2, 400), name.upper(), fill=(212, 175, 55), font=f_name, anchor="mm")
-    
-    motivation = f"Ushbu o'quvchi '{subject}' fani bo'yicha o'tkazilgan\nsinovlarda o'zining yuksak bilimini namoyon etdi."
-    draw.multiline_text((W/2, 530), motivation, fill="white", font=f_text, anchor="mm", align="center")
-    draw.text((W/2, 630), f"NATIJA: {score_text}", fill=(100, 255, 100), font=f_text, anchor="mm")
-    
-    quote = "Bilim - eng qudratli quroldir, unga ega bo'ling!"
-    draw.text((W/2, 690), quote, fill=(200, 200, 200), font=f_quote, anchor="mm")
+    # 2. SARLAVHA
+    draw.text((W/2, 290), "SERTIFIKAT", fill=(30, 30, 30), font=f_title, anchor="mm")
+    draw.text((W/2, 365), "USHBU HUJJAT QUYIDAGI SHAXSGA TOPSHIRILADI:", fill=gold_color, font=f_sub, anchor="mm")
 
-    # Imzo va Direktor
-    try:
-        sig = Image.open("signature.png").convert("RGBA").resize((220, 110))
-        img.paste(sig, (850, 680), sig)
-    except: pass
+    # 3. ISM
+    draw.text((W/2, 460), name.upper(), fill=(30, 30, 30), font=f_name, anchor="mm")
     
-    draw.text((850, 780), "Direktor: Normurodov I.", fill="white", font=f_dir)
-    draw.text((100, 780), f"Sana: {time.strftime('%d.%m.%Y')}", fill="gray", font=f_dir)
+    # 4. TAVSIF VA FAN
+    info_text = f"'{subject}' fani bo'yicha o'tkazilgan test sinovlarida\nmuvaffaqiyatli ishtirok etib, yuqori natija ko'rsatgani uchun."
+    draw.multiline_text((W/2, 580), info_text, fill=(60, 60, 60), font=f_text, anchor="mm", align="center")
+    
+    # 5. NATIJA
+    draw.text((W/2, 670), f"NATIJA: {score_text}", fill=(46, 125, 50), font=f_sub, anchor="mm")
+
+    # 6. IMZO VA DIREKTOR (PASTDA MARKAZDA)
+    line_y = 760
+    draw.line([(W/2 - 180, line_y), (W/2 + 180, line_y)], fill=gold_color, width=2)
+    draw.text((W/2, line_y + 35), "Direktor: Normurodov Izzatillo", fill=(30, 30, 30), font=f_dir, anchor="mm")
+
+    # Imzoni chiziq ustiga qo'yish
+    try:
+        sig = Image.open("signature.jpg").convert("RGBA")
+        datas = sig.getdata()
+        newData = []
+        for item in datas:
+            if item[0] > 210 and item[1] > 210 and item[2] > 210:
+                newData.append((255, 255, 255, 0))
+            else:
+                newData.append(item)
+        sig.putdata(newData)
+        sig = sig.resize((260, 130))
+        img.paste(sig, (int(W/2 - 130), line_y - 110), sig)
+    except: pass
+
+    # 7. SANA (O'ng pastda)
+    draw.text((1100, 780), f"Sana: {time.strftime('%d.%m.%Y')}", fill="gray", font=f_dir, anchor="rs")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-# --- 3. MA'LUMOTLAR VA TEST MANTIQI ---
-if 'start_test' not in st.session_state: st.session_state.start_test = False
+# --- 4. ILOVA MANTIQI (USER CHEKLOVI BILAN) ---
 if 'cert_file' not in st.session_state: st.session_state.cert_file = None
+if 'run' not in st.session_state: st.session_state.run = False
 
-# Ma'lumotlarni o'qish
+# Ma'lumotlarni yuklash
 try:
-    questions_df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-    settings_df = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
-    users_df = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
-    active_subject = settings_df.loc[settings_df['Parameter'] == 'ActiveSubject', 'Value'].values[0]
+    q_df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
+    s_df = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
+    u_df = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
+    active_sub = s_df.loc[s_df['Parameter'] == 'ActiveSubject', 'Value'].values[0]
 except:
-    st.error("Google Sheets varaqlari (Questions, Settings, Users) to'g'ri sozlanganiga ishonch hosil qiling!")
+    st.error("Jadval varaqlari (Questions, Settings, Users) xato!")
     st.stop()
 
 st.title("🎓 Smart Test Masters Pro")
 
-# Sidebar - Admin
-st.sidebar.title("🔐 Admin")
-admin_pass = st.sidebar.text_input("Parol:", type="password")
+u_name = st.text_input("Ism-familiyangiz:").strip()
 
-user_name = st.text_input("Ism-familiyangizni kiriting:").strip()
-
-if user_name:
-    if user_name in users_df['Ism'].values:
-        st.warning(f"⚠️ {user_name}, siz bu testni topshirib bo'lgansiz.")
+if u_name:
+    if u_name in u_df['Ism'].values:
+        st.warning("Siz test topshirgansiz.")
     else:
-        st.success(f"Fan: {active_subject}. Sertifikat olish uchun 20 tadan ko'p topishingiz kerak.")
-        if st.button("Testni boshlash"):
-            st.session_state.start_test = True
-
-        if st.session_state.start_test:
+        if st.button("Testni boshlash"): st.session_state.run = True
+        
+        if st.session_state.run:
             with st.form("test_form"):
-                subject_questions = questions_df[questions_df['Fan'] == active_subject]
-                q_count = min(30, len(subject_questions))
-                q_df = subject_questions.sample(n=q_count)
+                questions = q_df[q_df['Fan'] == active_sub].sample(n=30)
+                user_answers = {}
+                for i, (idx, row) in enumerate(questions.iterrows()):
+                    st.write(f"**{i+1}. {row['Savol']}**")
+                    user_answers[idx] = st.radio("Javob:", [row['A'], row['B'], row['C'], row['D']], key=idx)
                 
-                user_ans = {}
-                for i, (idx, row) in enumerate(q_df.iterrows()):
-                    st.markdown(f"**{i+1}. {row['Savol']}**")
-                    user_ans[idx] = st.radio("Javob:", [row['A'], row['B'], row['C'], row['D']], key=f"q_{idx}")
-                
-                if st.form_submit_button("Testni yakunlash"):
-                    score = sum(1 for idx, row in q_df.iterrows() if str(user_ans[idx]) == str(row['Javob']))
+                if st.form_submit_button("Tugatish"):
+                    score = sum(1 for idx, row in questions.iterrows() if str(user_answers[idx]) == str(row['Javob']))
                     
-                    # Natijani saqlash
-                    new_user = pd.DataFrame([{"Ism": user_name}])
-                    updated_users = pd.concat([users_df, new_user], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, data=updated_users, worksheet="Users")
+                    # Foydalanuvchini bazaga qo'shish
+                    new_data = pd.concat([u_df, pd.DataFrame([{"Ism": u_name}])], ignore_index=True)
+                    conn.update(spreadsheet=SHEET_URL, data=new_data, worksheet="Users")
                     
-                    # --- SERTIFIKAT SHARTI (20+ ball) ---
                     if score > 20:
-                        st.session_state.cert_file = create_certificate(user_name, f"{score}/{q_count}", active_subject)
+                        st.session_state.cert_file = create_certificate(u_name, f"{score}/30", active_sub)
                         st.balloons()
                     else:
-                        st.error(f"Natijangiz: {score}/{q_count}. Sertifikat uchun ball yetarli emas (Kamida 21 ta kerak).")
-                    
-                    st.session_state.start_test = False
+                        st.error(f"Natija: {score}/30. Sertifikat uchun 21 ball kerak.")
+                    st.session_state.run = False
 
-# Natijani ko'rsatish
+# Natijani chiqarish
 if st.session_state.cert_file:
     st.image(st.session_state.cert_file)
-    if admin_pass == "Izzat06":
+    if st.sidebar.text_input("Admin Parol:", type="password") == "Izzat06":
         st.download_button("📥 Yuklab olish", st.session_state.cert_file, "Sertifikat.png")
