@@ -5,85 +5,85 @@ import time
 import requests
 
 # 1. SAHIFA SOZLAMALARI
-st.set_page_config(page_title="TestMasters Pro Online", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="TestMasters Pro", page_icon="🎓", layout="centered")
 
-# 2. TELEGRAM VA GOOGLE SHEETS SOZLAMALARI
-TELEGRAM_TOKEN = "7713876041:AAHLtJ7F-kGv9p4C8U7A3x-8-U8l9Y8S5U"
-CHAT_ID = "@Testmaster_LC" # Sizning kanalingiz
+# 2. SOZLAMALAR
+# Siz yuborgan oxirgi token va kanal manzili
+TELEGRAM_TOKEN = "8541792718:AAF4SNckR8rTqB1WwPJrc3HzF-KpTv5mWd0"
+CHAT_ID = "@Testmaster_LC" 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit?usp=sharing"
 
+# Ma'lumotlar bazasiga ulanish
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- TELEGRAMGA NATIJANI YUBORISH FUNKSIYASI ---
 def send_to_telegram(name, score, total, percent, subject):
-    status = "✅ MUVAFFAQIYATLI" if percent >= 70 else "❌ YAXSHI EMAS"
+    status = "✅ O'TDI" if percent >= 70 else "❌ O'TMADI"
     msg = (
-        f"📊 *YANGI TEST NATIJASI*\n\n"
+        f"📊 *TEST YAKUNLANDI*\n\n"
         f"👤 *O'quvchi:* {name}\n"
         f"📚 *Fan:* {subject}\n"
-        f"✅ *To'g'ri:* {score} ta\n"
-        f"🏁 *Jami:* {total} ta\n"
-        f"📈 *Foiz:* {percent:.1f}%\n"
+        f"✅ *Natija:* {score}/{total} ({percent:.1f}%)\n"
         f"📝 *Holat:* {status}"
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=5)
     except:
         pass
 
-# --- MA'LUMOTLARNI YUKLASH ---
+# MA'LUMOTLARNI YUKLASH (Kesh bilan)
+@st.cache_data(ttl=60)
+def load_data():
+    q = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
+    s = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
+    u = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
+    return q, s, u
+
 try:
-    q_df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-    s_df = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
-    u_df = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
-    
+    q_df, s_df, u_df = load_data()
     s_df['Parameter'] = s_df['Parameter'].astype(str).str.strip()
     active_sub = str(s_df.loc[s_df['Parameter'] == 'ActiveSubject', 'Value'].values[0]).strip()
     q_df['Fan'] = q_df['Fan'].astype(str).str.strip()
-except Exception as e:
-    st.error(f"Ma'lumotlar bazasida xatolik: {e}")
+    existing_users = u_df['Ism'].astype(str).str.strip().tolist()
+except:
+    st.error("Baza bilan aloqa uzildi. Iltimos, sahifani yangilang.")
     st.stop()
 
 # SESSION STATE
 if 'test_run' not in st.session_state: st.session_state.test_run = False
 if 'final_score' not in st.session_state: st.session_state.final_score = None
-if 'questions' not in st.session_state: st.session_state.questions = None
-if 'total_time' not in st.session_state: st.session_state.total_time = 0
-if 'start_time' not in st.session_state: st.session_state.start_time = 0
 
-st.title(f"🎓 {active_sub} Fanidan Online Test")
+st.title(f"🏛 {active_sub} Imtihon Platformasi")
 
-u_name = st.text_input("Ism-familiyangizni kiriting:").strip()
+u_name = st.text_input("To'liq ism-familiyangizni kiriting:").strip()
 
 if u_name:
-    if u_name in u_df['Ism'].values:
-        st.warning("Siz ushbu testni topshirib bo'lgansiz!")
+    if u_name in existing_users:
+        st.error(f"🛑 {u_name}, siz test topshirib bo'lgansiz!")
     else:
         if not st.session_state.test_run and st.session_state.final_score is None:
             available_qs = q_df[q_df['Fan'] == active_sub]
-            
-            if available_qs.empty:
-                st.error(f"Hozirda '{active_sub}' fani bo'yicha savollar mavjud emas.")
-            else:
-                st.info(f"Savollar soni: {len(available_qs.head(30))} ta. Vaqt savollarga ko'ra hisoblanadi.")
-                if st.button("🚀 Testni Boshlash"):
+            if not available_qs.empty:
+                if st.button("🚀 Imtihonni boshlash"):
                     sample_n = min(len(available_qs), 30)
-                    selected_qs = available_qs.sample(n=sample_n)
-                    
-                    st.session_state.total_time = int(selected_qs['Vaqt'].sum())
-                    st.session_state.questions = selected_qs
+                    st.session_state.questions = available_qs.sample(n=sample_n)
+                    st.session_state.total_time = int(st.session_state.questions['Vaqt'].sum())
                     st.session_state.start_time = time.time()
                     st.session_state.test_run = True
                     st.rerun()
 
-        # TEST JARAYONI
         if st.session_state.test_run:
             elapsed = time.time() - st.session_state.start_time
             remaining = max(0, st.session_state.total_time - int(elapsed))
-            
             m, s = divmod(remaining, 60)
-            st.sidebar.markdown(f"## ⏳ Vaqt: {m:02d}:{s:02d}")
+            
+            # Taymer dizayni
+            st.markdown(f"""
+                <div style="position: fixed; top: 10px; right: 10px; background-color: #1E1E1E; color: #FF4B4B; 
+                padding: 10px 20px; border-radius: 10px; font-size: 24px; font-weight: bold; z-index: 1000; border: 2px solid #FF4B4B;">
+                    ⏳ {m:02d}:{s:02d}
+                </div>
+            """, unsafe_allow_html=True)
             
             if remaining <= 0:
                 st.session_state.test_run = False
@@ -93,48 +93,26 @@ if u_name:
                 u_ans = {}
                 for i, (idx, row) in enumerate(st.session_state.questions.iterrows()):
                     st.markdown(f"**{i+1}. {row['Savol']}**")
-                    u_ans[idx] = st.radio(f"Javobni tanlang:", [row['A'], row['B'], row['C'], row['D']], index=None, key=f"q_{idx}")
+                    u_ans[idx] = st.radio("Javob:", [row['A'], row['B'], row['C'], row['D']], index=None, key=f"q_{idx}")
                 
-                if st.form_submit_button("🏁 Testni Yakunlash"):
+                if st.form_submit_button("🏁 Yakunlash"):
                     corrects = sum(1 for idx, row in st.session_state.questions.iterrows() if str(u_ans[idx]) == str(row['Javob']))
                     st.session_state.final_score = corrects
-                    
-                    # Natijani saqlash
                     total = len(st.session_state.questions)
                     percent = (corrects / total) * 100
-                    new_u = pd.concat([u_df, pd.DataFrame([{"Ism": u_name}])], ignore_index=True)
-                    conn.update(spreadsheet=SHEET_URL, data=new_u, worksheet="Users")
                     
-                    # Telegramga yuborish
+                    # Google Sheets yangilash
+                    new_user_row = pd.DataFrame([{"Ism": u_name}])
+                    updated_df = pd.concat([u_df, new_user_row], ignore_index=True)
+                    conn.update(spreadsheet=SHEET_URL, data=updated_df, worksheet="Users")
+                    
                     send_to_telegram(u_name, corrects, total, percent, active_sub)
-                    
                     st.session_state.test_run = False
                     st.rerun()
             
-            time.sleep(1) # Taymer yangilanishi uchun
+            time.sleep(1)
             st.rerun()
 
-# NATIJA KO'RSATISH
 if st.session_state.final_score is not None:
-    score = st.session_state.final_score
-    total = len(st.session_state.questions)
-    percent = (score / total) * 100
-    
-    st.divider()
-    st.subheader(f"📊 {u_name}, natijangiz:")
-    st.progress(score / total)
-    
-    c1, c2 = st.columns(2)
-    c1.metric("To'g'ri javoblar", f"{score} / {total}")
-    c2.metric("Foiz ko'rsatkichi", f"{percent:.1f}%")
-
-    if percent >= 70:
-        st.balloons()
-        st.success("🔥 Ajoyib natija! Bilimingiz yuqori darajada.")
-    else:
-        st.warning("💪 Yomon emas. Ko'proq mutolaa qilish tavsiya etiladi.")
-
-    if st.button("🔄 Bosh sahifaga qaytish"):
-        st.session_state.final_score = None
-        st.session_state.questions = None
-        st.rerun()
+    st.success(f"### Imtihon yakunlandi! Natijangiz: {st.session_state.final_score}")
+    st.link_button("🔗 Testmaster_LC kanaliga o'tish", "https://t.me/Testmasters_LC")
