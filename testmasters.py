@@ -21,18 +21,23 @@ def send_to_telegram(name, score, total, percent, subject):
         requests.post(url, data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}, timeout=5)
     except: pass
 
-def load_data_fresh():
-    q = conn.read(spreadsheet=SHEET_URL, worksheet="Questions", ttl=0)
-    u = conn.read(spreadsheet=SHEET_URL, worksheet="Users", ttl=0)
+# --- MUHIM O'ZGARIŞ: Ma'lumotlarni kesh bilan yuklash (10 daqiqa davomida qayta so'ramaydi) ---
+@st.cache_data(ttl=600)
+def load_data_cached():
+    q = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
+    u = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
     return q, u
 
+# Bloklash uchun Users jadvalini har safar yangi o'qish (faqat ism kiritilganda bir marta)
+def check_user_fresh():
+    u = conn.read(spreadsheet=SHEET_URL, worksheet="Users", ttl=0)
+    return [str(name).strip().lower() for name in u['Ism'].tolist()]
+
 try:
-    q_df, u_df = load_data_fresh()
-    # Bazadagi barcha fanlarni takrorlanmas qilib olish
+    q_df, _ = load_data_cached()
     available_subjects = q_df['Fan'].unique().tolist()
-    existing_users = [str(name).strip().lower() for name in u_df['Ism'].tolist()]
 except Exception as e:
-    st.error(f"Ma'lumotlarni yuklashda xato: {e}")
+    st.error("Google Sheets kvotasi tugagan. 1 daqiqa kuting...")
     st.stop()
 
 # SESSION STATE
@@ -44,15 +49,22 @@ st.title("🚀 Testmasters Online Testlar Markazi")
 u_name_raw = st.text_input("Ism-familiyangizni kiriting:").strip()
 
 if u_name_raw:
-    if u_name_raw.lower() in existing_users:
+    # Faqat ism kiritilganda Users ro'yxatini tekshiramiz
+    if 'user_checked' not in st.session_state:
+        existing_users = check_user_fresh()
+        if u_name_raw.lower() in existing_users:
+            st.session_state.blocked = True
+        else:
+            st.session_state.blocked = False
+        st.session_state.user_checked = True
+
+    if st.session_state.get('blocked', False):
         st.error(f"🛑 {u_name_raw}, siz avval test topshirgansiz!")
     else:
-        # FANNI TANLASH QISMI
         selected_subject = st.selectbox("Test topshirmoqchi bo'lgan fanni tanlang:", available_subjects)
 
         if not st.session_state.test_run and st.session_state.final_score is None:
             if st.button(f"🚀 {selected_subject} fanidan testni boshlash"):
-                # Faqat tanlangan fan savollarini olish
                 sub_qs = q_df[q_df['Fan'] == selected_subject]
                 st.session_state.questions = sub_qs.sample(n=min(len(sub_qs), 30))
                 st.session_state.total_time = int(st.session_state.questions['Vaqt'].sum())
@@ -83,8 +95,9 @@ if u_name_raw:
                     total = len(st.session_state.questions)
                     percent = (corrects / total) * 100
                     
-                    # Bazaga yozish
-                    new_user = pd.concat([u_df, pd.DataFrame([{"Ism": u_name_raw}])], ignore_index=True)
+                    # Natijani bazaga yozish
+                    _, u_df_old = load_data_cached()
+                    new_user = pd.concat([u_df_old, pd.DataFrame([{"Ism": u_name_raw}])], ignore_index=True)
                     conn.update(spreadsheet=SHEET_URL, data=new_user, worksheet="Users")
                     
                     send_to_telegram(u_name_raw, corrects, total, percent, st.session_state.selected_subject)
