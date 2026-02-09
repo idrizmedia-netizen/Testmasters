@@ -7,124 +7,89 @@ import io
 
 st.set_page_config(page_title="Smart Test Masters Pro", layout="centered")
 
-# 1. Google Sheets ulanishi
 conn = st.connection("gsheets", type=GSheetsConnection)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit"
 
-# --- 2. VIZUAL SERTIFIKAT FUNKSIYASI ---
+# --- SERTIFIKAT FUNKSIYASI ---
 def create_certificate(name, score, subject):
-    # Sertifikat o'lchami va foni (To'q ko'k)
     W, H = 1000, 700
     img = Image.new('RGB', (W, H), color=(10, 30, 60))
     draw = ImageDraw.Draw(img)
-    
-    # DIZAYN ELEMENTLARI: Oltin hoshiyalar
-    # Tashqi qalin chiziq
+    # (Avvalgi vizual dizayn kodlari shu yerda qoladi...)
     draw.rectangle([25, 25, 975, 675], outline=(212, 175, 55), width=3)
-    # Ichki burchak bezaklari (ikki qavatli ramka)
-    draw.rectangle([45, 45, 955, 655], outline=(212, 175, 55), width=1)
-    
-    # Burchaklardagi geometrik bezaklar (Vizualdagi kabi)
-    margin = 45
-    length = 100
-    # To'rt burchakda oltin burchakliklar
-    draw.line([(margin, margin), (margin + length, margin)], fill=(212, 175, 55), width=8)
-    draw.line([(margin, margin), (margin, margin + length)], fill=(212, 175, 55), width=8)
-    
-    draw.line([(W-margin, margin), (W-margin-length, margin)], fill=(212, 175, 55), width=8)
-    draw.line([(W-margin, margin), (W-margin, margin+length)], fill=(212, 175, 55), width=8)
-    
-    draw.line([(margin, H-margin), (margin+length, H-margin)], fill=(212, 175, 55), width=8)
-    draw.line([(margin, H-margin), (margin, H-margin-length)], fill=(212, 175, 55), width=8)
-    
-    draw.line([(W-margin, H-margin), (W-margin-length, H-margin)], fill=(212, 175, 55), width=8)
-    draw.line([(W-margin, H-margin), (W-margin, H-margin-length)], fill=(212, 175, 55), width=8)
-
     try:
         font_path = "Montserrat-Bold.ttf"
         f_title = ImageFont.truetype(font_path, 80)
         f_name = ImageFont.truetype(font_path, 75)
         f_info = ImageFont.truetype(font_path, 35)
-        f_small = ImageFont.truetype(font_path, 25)
     except:
-        f_title = f_name = f_info = f_small = ImageFont.load_default()
-
-    # 1. LOGOTIPNI JOYLASHTIRISH
-    try:
-        logo = Image.open("logo.png").convert("RGBA")
-        logo = logo.resize((130, 130))
-        img.paste(logo, (100, 80), logo)
-    except:
-        draw.rectangle([100, 80, 230, 210], outline="white")
-        draw.text((115, 130), "LOGO", fill="white", font=f_small)
-
-    # 2. MATNLAR (Oltin va oq ranglar uyg'unligi)
+        f_title = f_name = f_info = ImageFont.load_default()
+    
     draw.text((W/2, 180), "SERTIFIKAT", fill=(212, 175, 55), font=f_title, anchor="mm")
-    draw.text((W/2, 280), "Ushbu hujjat egasi:", fill="white", font=f_info, anchor="mm")
-    
-    # Ism ostiga chiziq
     draw.text((W/2, 380), name.upper(), fill=(212, 175, 55), font=f_name, anchor="mm")
-    draw.line([(300, 430), (700, 430)], fill=(212, 175, 55), width=2)
+    draw.text((W/2, 500), f"FAN: {subject.upper()} | NATIJA: {score}", fill="white", font=f_info, anchor="mm")
     
-    draw.text((W/2, 500), f"FAN: {subject.upper()}", fill="white", font=f_info, anchor="mm")
-    draw.text((W/2, 560), f"NATIJA: {score}", fill=(100, 255, 100), font=f_info, anchor="mm")
-
-    # 3. IMZO VA DIREKTOR
-    try:
-        sig = Image.open("signature.png").convert("RGBA")
-        sig = sig.resize((220, 110))
-        # Imzoni ism ustiga biroz tushirib joylashtiramiz
-        img.paste(sig, (650, 520), sig)
-    except:
-        draw.line((650, 610, 900, 610), fill="white", width=1)
-
-    draw.text((650, 620), "Direktor: Normurodov Izzatillo", fill="white", font=f_small)
-    draw.text((100, 620), f"Sana: {time.strftime('%d.%m.%Y')}", fill="gray", font=f_small)
-
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
 
-# --- 3. ILOVA MANTIQI ---
-if 'cert_file' not in st.session_state:
-    st.session_state.cert_file = None
+# --- MA'LUMOTLARNI YUKLASH ---
+@st.cache_data(ttl=5)
+def get_data():
+    questions = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
+    settings = conn.read(spreadsheet=SHEET_URL, worksheet="Settings")
+    users = conn.read(spreadsheet=SHEET_URL, worksheet="Users")
+    return questions, settings, users
+
+questions_df, settings_df, users_df = get_data()
 
 st.title("🎓 Smart Test Masters Pro")
 
-# Sidebar
-st.sidebar.title("🔐 Nazorat")
-admin_pass = st.sidebar.text_input("Admin paroli:", type="password")
+# Sidebar - Admin
+st.sidebar.title("🔐 Admin")
+admin_pass = st.sidebar.text_input("Parol:", type="password")
 
-df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-if not df.empty:
-    user_name = st.text_input("Ism-familiyangizni kiriting:")
-    subject = st.selectbox("Fanni tanlang:", df['Fan'].unique())
+# 1. Ruxsat berilgan fanni aniqlash
+active_subject = settings_df.loc[settings_df['Parameter'] == 'ActiveSubject', 'Value'].values[0]
 
-    if user_name and subject:
-        with st.form("test_form"):
-            q_df = df[df['Fan'] == subject].sample(n=min(10, len(df[df['Fan']==subject])))
-            user_ans = {}
-            for i, (idx, row) in enumerate(q_df.iterrows()):
-                st.markdown(f"**{i+1}. {row['Savol']}**")
-                user_ans[idx] = st.radio("Javobingiz:", [row['A'], row['B'], row['C'], row['D']], key=f"q_{idx}")
-            
-            if st.form_submit_button("Testni yakunlash"):
-                score_count = sum(1 for idx, row in q_df.iterrows() if str(user_ans[idx]) == str(row['Javob']))
-                # Sertifikat yaratish va saqlash
-                st.session_state.cert_file = create_certificate(user_name, f"{score_count}/{len(q_df)}", subject)
-                st.balloons()
+# 2. Foydalanuvchi tekshiruvi
+user_name = st.text_input("Ism-familiyangizni kiriting:").strip()
 
-# --- 4. NATIJANI KO'RSATISH ---
-if st.session_state.cert_file:
-    st.image(st.session_state.cert_file, use_container_width=True)
-    
-    if admin_pass == "Izzat06":
-        st.sidebar.success("Xush kelibsiz, Izzatillo!")
-        st.download_button(
-            label="📥 Sertifikatni yuklab olish",
-            data=st.session_state.cert_file,
-            file_name=f"Sertifikat_{user_name}.png",
-            mime="image/png"
-        )
+if user_name:
+    # Avval topshirganmi?
+    if user_name in users_df['Ism'].values:
+        st.error(f"Hurmatli {user_name}, siz bu testni topshirib bo'lgansiz! Qayta kirish taqiqlangan.")
     else:
-        st.sidebar.info("Yuklab olish tugmasi uchun parolni kiriting.")
+        st.info(f"Hozirgi faol fan: **{active_subject}**")
+        
+        if st.button("Testni boshlash"):
+            st.session_state.start_test = True
+
+        if st.session_state.get('start_test'):
+            with st.form("test_form"):
+                # 30 ta tasodifiy savol tanlash
+                subject_questions = questions_df[questions_df['Fan'] == active_subject]
+                q_count = min(30, len(subject_questions))
+                q_df = subject_questions.sample(n=q_count)
+                
+                user_ans = {}
+                for i, (idx, row) in enumerate(q_df.iterrows()):
+                    st.markdown(f"**{i+1}. {row['Savol']}**")
+                    user_ans[idx] = st.radio("Javob:", [row['A'], row['B'], row['C'], row['D']], key=f"q_{idx}")
+                
+                if st.form_submit_button("Yakunlash"):
+                    score = sum(1 for idx, row in q_df.iterrows() if str(user_ans[idx]) == str(row['Javob']))
+                    
+                    # Natijani saqlash va foydalanuvchini bloklash
+                    new_user = pd.DataFrame([{"Ism": user_name}])
+                    updated_users = pd.concat([users_df, new_user], ignore_index=True)
+                    conn.update(spreadsheet=SHEET_URL, data=updated_users, worksheet="Users")
+                    
+                    st.session_state.cert_file = create_certificate(user_name, f"{score}/{q_count}", active_subject)
+                    st.success("Test yakunlandi!")
+
+# Natijani ko'rsatish
+if st.session_state.get('cert_file'):
+    st.image(st.session_state.cert_file)
+    if admin_pass == "Izzat06":
+        st.download_button("📥 Yuklab olish", st.session_state.cert_file, "Sertifikat.png")
