@@ -31,42 +31,44 @@ def set_background(subject):
     bg = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""<style>.stApp {{ background: {bg}; background-size: cover; background-attachment: fixed; }}
     .stMarkdown, p, h1, h2, h3, span {{ color: white !important; }}
-    div[data-testid="stForm"] {{ background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(15px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2); }}
+    div[data-testid="stForm"] {{ background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(15px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2); }}
     </style>""", unsafe_allow_html=True)
 
-# --- MA'LUMOTLARNI YUKLASH (Xatosiz qism) ---
+# --- 3. FUNKSIYALAR (MUHIM!) ---
+
 @st.cache_data(ttl=600)
 def load_questions_cached():
     try:
-        # Jadvalni o'qiymiz
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-        # Bo'sh qatorlarni o'chiramiz va 'Fan' ustunidagi takrorlanishlarni olib tashlaymiz
-        if 'Fan' in df.columns:
-            return df
-        else:
-            st.error("Xato: Google Sheets'da 'Fan' ustuni topilmadi!")
-            return None
+        return df
     except Exception as e:
-        st.error(f"Ulanishda xato: {e}")
+        st.error(f"Savollarni yuklashda xato: {e}")
         return None
 
-# Sahifaning o'rtasida fanlarni aniqlash qismi:
-q_df = load_questions_cached()
+def check_user_fresh(name):
+    try:
+        u = conn.read(spreadsheet=SHEET_URL, worksheet="Sheet1", ttl=0)
+        # Agar Ism ustuni bo'lsa tekshiramiz
+        if 'Ism' in u.columns:
+            existing = [str(n).strip().lower() for n in u['Ism'].tolist()]
+            return name.lower() in existing, u
+        return False, u
+    except Exception as e:
+        # Agar Sheet1 bo'sh bo'lsa yoki xato bersa
+        return False, pd.DataFrame(columns=["Ism", "Fan", "Natija", "Ball"])
 
-if q_df is not None:
-    # Faqat 'Fan' ustunidagi nomlarni olamiz va bo'sh bo'lmaganlarini saralaymiz
-    available_subjects = q_df['Fan'].dropna().unique().tolist()
-else:
-    available_subjects = []
-    st.stop()
-
-# SESSION STATE INIZIALIZATSIYA
+# --- 4. SESSION STATE ---
 if 'test_run' not in st.session_state: st.session_state.test_run = False
 if 'final_score' not in st.session_state: st.session_state.final_score = None
 if 'user_checked' not in st.session_state: st.session_state.user_checked = False
 
+# --- 5. ASOSIY QISM ---
 q_df = load_questions_cached()
-available_subjects = q_df['Fan'].unique().tolist()
+
+if q_df is not None:
+    available_subjects = q_df['Fan'].dropna().unique().tolist()
+else:
+    st.stop()
 
 st.title("🚀 Testmasters Online")
 
@@ -74,12 +76,11 @@ st.title("🚀 Testmasters Online")
 if not st.session_state.test_run and st.session_state.final_score is None:
     u_name_raw = st.text_input("Ism-familiyangizni kiriting:").strip()
     if u_name_raw:
-        if not st.session_state.user_checked or st.session_state.current_user != u_name_raw.lower():
+        if not st.session_state.user_checked:
             is_blocked, u_df = check_user_fresh(u_name_raw)
             st.session_state.is_blocked = is_blocked
             st.session_state.u_df = u_df
             st.session_state.user_checked = True
-            st.session_state.current_user = u_name_raw.lower()
             st.session_state.full_name = u_name_raw
 
         if st.session_state.is_blocked:
