@@ -47,15 +47,20 @@ def save_to_sheets(name, subject, corrects, total, ball):
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_res)
     except: pass
 
-# --- FONLAR (TINIQ VA CHIROYLI) ---
+# --- FANLAR UCHUN MAXSUS HD FONLAR ---
 bg_styles = {
-    "Kimyo": "url('https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Biologiya": "url('https://images.pexels.com/photos/3322000/pexels-photo-3322000.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Ingliz tili": "url('https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Geografiya": "url('https://images.pexels.com/photos/41949/earth-earth-at-night-night-lights-41949.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Huquq": "url('https://images.pexels.com/photos/606541/pexels-photo-606541.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Rus tili": "url('https://images.pexels.com/photos/594365/pexels-photo-594365.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-    "Default": "linear-gradient(135deg, #0f2027, #203a43, #2c5364)"
+    "Matematika": "url('https://images.unsplash.com/photo-1509228468518-180dd48a5793?q=80&w=2000&auto=format')",
+    "Fizika": "url('https://images.unsplash.com/photo-1636466484292-78351adcb72e?q=80&w=2000&auto=format')",
+    "Informatika": "url('https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2000&auto=format')",
+    "Tarix": "url('https://images.unsplash.com/photo-1461360226052-7236aadb12c1?q=80&w=2000&auto=format')",
+    "Ona-tili": "url('https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=2000&auto=format')",
+    "Kimyo": "url('https://images.unsplash.com/photo-1532187878418-9f1100188665?q=80&w=2000&auto=format')",
+    "Biologiya": "url('https://images.unsplash.com/photo-1530026405186-ed1f139313f8?q=80&w=2000&auto=format')",
+    "Ingliz tili": "url('https://images.unsplash.com/photo-1543167664-c92155e96916?q=80&w=2000&auto=format')",
+    "Geografiya": "url('https://images.unsplash.com/photo-1521295121683-bc014fe1003e?q=80&w=2000&auto=format')",
+    "Huquq": "url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2000&auto=format')",
+    "Rus tili": "url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000&auto=format')",
+    "Default": "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)"
 }
 
 def apply_styles(subject):
@@ -68,32 +73,23 @@ def apply_styles(subject):
     }}
     .stMarkdown, p, h1, h2, h3, span, label {{ 
         color: white !important; 
-        text-shadow: 2px 2px 8px rgba(0,0,0,1); 
+        text-shadow: 2px 2px 10px rgba(0,0,0,1); 
     }}
-    
-    /* MA'LUMOT BOXI */
     .info-box {{
         background: rgba(0, 0, 0, 0.7);
-        padding: 20px;
-        border-radius: 15px;
-        border-left: 6px solid #92FE9D;
-        margin-bottom: 20px;
+        padding: 20px; border-radius: 15px;
+        border-left: 6px solid #92FE9D; margin-bottom: 20px;
     }}
-
-    /* TUGMALAR */
     button[kind="primaryFormSubmit"], .stButton > button {{
         width: 100% !important; 
         background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
         color: black !important; font-size: 22px !important; font-weight: bold !important; 
         border-radius: 12px !important; border: none !important;
-        transition: 0.3s;
     }}
-    
-    /* FORM OYNASI */
     div[data-testid="stForm"] {{
         background: rgba(0, 0, 0, 0.8) !important;
         padding: 40px; border-radius: 25px; 
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -105,12 +101,10 @@ def prepare_test_data(df, subject):
     test_items = []
     for _, row in selected_qs.iterrows():
         options = [row['A'], row['B'], row['C'], row['D']]
-        random.shuffle(options) # Variatnlar chalkashadi
+        random.shuffle(options)
         test_items.append({
-            "question": row['Savol'],
-            "options": options,
-            "correct": row['Javob'],
-            "time": pd.to_numeric(row['Vaqt'], errors='coerce') or 30
+            "question": row['Savol'], "options": options,
+            "correct": row['Javob'], "time": pd.to_numeric(row['Vaqt'], errors='coerce') or 30
         })
     return test_items
 
@@ -137,9 +131,8 @@ if q_df is not None:
         st.title("🎓 Testmasters Online")
         
         if st.session_state.completed:
-            st.error("⚠️ Siz testni topshirib bo'lgansiz. Bir marta topshirishga ruxsat berilgan.")
+            st.error("⚠️ Siz testni topshirib bo'lgansiz.")
         else:
-            # YO'RIQNOMA QAYTARILDI
             st.markdown("""
             <div class="info-box">
                 <h3 style="margin-top:0;">📝 Yo'riqnoma:</h3>
