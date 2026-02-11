@@ -16,7 +16,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- TELEGRAMGA NATIJANI YUBORISH FUNKSIYASI ---
 def send_to_telegram(name, subject, corrects, total, ball):
-    # Markdown xatolarini oldini olish uchun oddiy matn formatida yuboramiz
     text = (
         f"🏆 YANGI NATIJA!\n\n"
         f"👤 O'quvchi: {name}\n"
@@ -28,49 +27,55 @@ def send_to_telegram(name, subject, corrects, total, ball):
     )
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
-        response = requests.post(url, json={"chat_id": CHAT_ID, "text": text})
-        if response.status_code != 200:
-            st.error(f"Telegramga yuborishda xatolik: {response.text}")
-    except Exception as e:
-        st.error(f"Tarmoq xatosi: {e}")
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+    except:
+        pass
 
-# --- FONLAR VA TUGMA STILLARI ---
+# --- FONLAR VA TUGMA STILLARI (TINIQLASHTIRILDI) ---
 bg_styles = {
-    "Kimyo": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1603126731702-5094e430ba31?q=80&w=1600')",
-    "Biologiya": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1530026405186-ed1f139313f8?q=80&w=1600')",
-    "Ingliz tili": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1543167664-c92155e96916?q=80&w=1600')",
-    "Geografiya": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1521295121683-bc014fe1003e?q=80&w=1600')",
-    "Huquq": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=1600')",
-    "Rus tili": "linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=1600')",
-    "Default": "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)"
+    "Kimyo": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1532187878418-9f1100188665?auto=format&fit=crop&w=1600&q=80')",
+    "Biologiya": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&w=1600&q=80')",
+    "Ingliz tili": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1600&q=80')",
+    "Geografiya": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1521295121683-bc014fe1003e?auto=format&fit=crop&w=1600&q=80')",
+    "Huquq": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1600&q=80')",
+    "Rus tili": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?auto=format&fit=crop&w=1600&q=80')",
+    "Default": "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)"
 }
 
 def apply_styles(subject):
     bg = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""
     <style>
-    .stApp {{ background: {bg}; background-size: cover; background-attachment: fixed; }}
-    .stMarkdown, p, h1, h2, h3, span, label {{ color: white !important; font-family: 'Segoe UI', sans-serif; }}
+    .stApp {{ 
+        background: {bg}; 
+        background-size: cover; 
+        background-attachment: fixed; 
+        background-position: center;
+    }}
+    .stMarkdown, p, h1, h2, h3, span, label {{ 
+        color: white !important; 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }}
     
-    button[kind="primaryFormSubmit"], .stButton > button, div[data-testid="stForm"] button {{
+    button[kind="primaryFormSubmit"], .stButton > button {{
         width: 100% !important;
-        background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
-        color: #000 !important;
-        font-size: 18px !important;
+        background: linear-gradient(90deg, #FF512F 0%, #DD2476 100%) !important;
+        color: white !important;
+        font-size: 20px !important;
         font-weight: bold !important;
-        padding: 12px !important;
-        border-radius: 12px !important;
+        padding: 15px !important;
+        border-radius: 15px !important;
         border: none !important;
-        box-shadow: 0px 4px 15px rgba(0,201,255,0.4) !important;
-        opacity: 1 !important;
+        box-shadow: 0px 5px 20px rgba(0,0,0,0.4) !important;
     }}
     
     div[data-testid="stForm"] {{
-        background: rgba(0, 0, 0, 0.7) !important;
-        backdrop-filter: blur(12px);
-        padding: 25px;
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.15) !important;
+        backdrop-filter: blur(15px);
+        padding: 30px;
+        border-radius: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -79,19 +84,13 @@ def apply_styles(subject):
 def get_balanced_questions(df, subject, n_total=30):
     sub_qs = df[df['Fan'] == subject].copy()
     if len(sub_qs) <= n_total: return sub_qs.sample(frac=1)
-    
-    # Vaqtni majburan songa o'tkazish
     sub_qs['Vaqt'] = pd.to_numeric(sub_qs['Vaqt'], errors='coerce').fillna(30)
-    
     oson = sub_qs[(sub_qs['Vaqt'] >= 30) & (sub_qs['Vaqt'] <= 40)]
     orta = sub_qs[(sub_qs['Vaqt'] >= 41) & (sub_qs['Vaqt'] <= 70)]
     qiyin = sub_qs[sub_qs['Vaqt'] >= 71]
-    
     selected = []
     for group in [oson, orta, qiyin]:
-        if not group.empty:
-            selected.append(group.sample(n=min(len(group), 10)))
-    
+        if not group.empty: selected.append(group.sample(n=min(len(group), 10)))
     final_qs = pd.concat(selected) if selected else pd.DataFrame()
     if len(final_qs) < n_total:
         remaining = sub_qs.drop(final_qs.index)
@@ -122,10 +121,7 @@ if q_df is not None:
         st.title("🚀 Testmasters Online")
         
         if st.session_state.completed:
-            st.warning("⚠️ Siz ushbu sessiyada testni topshirib bo'ldingiz.")
-            if st.button("Qayta urinish"):
-                st.session_state.completed = False
-                st.rerun()
+            st.error("⚠️ Siz testni topshirib bo'lgansiz. Bir marta topshirishga ruxsat berilgan.")
         else:
             u_name = st.text_input("Ism-familiyangizni kiriting:", placeholder="Ali Valiyev").strip()
             if u_name:
@@ -134,7 +130,6 @@ if q_df is not None:
                 if st.button(f"🚀 {selected_subject} fanidan boshlash"):
                     qs = get_balanced_questions(q_df, selected_subject)
                     st.session_state.questions = qs
-                    # VAQT XATOLIGINI TUZATISH:
                     v_data = pd.to_numeric(qs['Vaqt'], errors='coerce').fillna(0)
                     st.session_state.total_time = int(v_data.sum())
                     st.session_state.start_time = time.time()
@@ -150,13 +145,12 @@ if q_df is not None:
         
         rem = max(0, st.session_state.total_time - int(time.time() - st.session_state.start_time))
         st.sidebar.markdown(f"""
-        <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.5); border-radius: 15px; border: 2px solid #92FE9D;">
+        <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.7); border-radius: 15px; border: 2px solid #92FE9D;">
             <h2 style="margin:0; color: #92FE9D;">⏳ {rem//60:02d}:{rem%60:02d}</h2>
             <p style="color: white; margin:0;">QOLGAN VAQT</p>
         </div>""", unsafe_allow_html=True)
         
         if rem <= 0:
-            st.warning("Vaqtingiz tugadi!")
             st.session_state.test_run = False
             st.session_state.completed = True
             st.rerun()
@@ -183,7 +177,6 @@ if q_df is not None:
                 st.session_state.completed = True
                 st.rerun()
         
-        # FAQAT TEST VAQTIDA YANGILASH
         time.sleep(1)
         st.rerun()
 
@@ -192,12 +185,16 @@ if q_df is not None:
         apply_styles("Default")
         res = st.session_state.final_score
         st.balloons()
-        st.success(f"### 🎉 Natijangiz tayyor, {res['name']}!")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Fan", res['subject'])
-        col2.metric("Natija", f"{res['score']}/{res['total']}")
-        col3.metric("Ball", f"{res['ball']}%")
+        st.success(f"### 🎉 Natijangiz, {res['name']}!")
         
-        if st.button("⬅️ Asosiy sahifaga qaytish"):
-            st.session_state.final_score = None
-            st.rerun()
+        # Natija oynasi tiniq va aniq ko'rinishi uchun alohida blok
+        st.markdown(f"""
+        <div style="background: rgba(0,0,0,0.6); padding: 25px; border-radius: 20px; border: 1px solid #92FE9D; text-align: center;">
+            <h2 style="color: white;">Fan: {res['subject']}</h2>
+            <h1 style="color: #92FE9D;">Ball: {res['ball']}%</h1>
+            <p style="font-size: 20px;">To'g'ri javoblar: {res['score']} / {res['total']}</p>
+            <hr>
+            <p style="color: #ff4b4b;">⚠️ Test yakunlandi. Sizga muvaffaqiyat tilaymiz!</p>
+        </div>
+        """, unsafe_allow_html=True)
+        # "Qaytish" tugmasi olib tashlandi, shunda o'quvchi qayta ishlay olmaydi.
