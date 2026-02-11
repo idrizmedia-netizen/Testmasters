@@ -47,53 +47,65 @@ def save_to_sheets(name, subject, corrects, total, ball):
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_res)
     except: pass
 
-# --- FONLAR (TINIQ HD) ---
+# --- FONLAR (TINIQ VA CHIROYLI) ---
 bg_styles = {
-    "Kimyo": "url('https://images.unsplash.com/photo-1603126738550-9d32775f9032?q=80&w=2000&auto=format')",
-    "Biologiya": "url('https://images.unsplash.com/photo-1576086213369-97a306dca664?q=80&w=2000&auto=format')",
-    "Ingliz tili": "url('https://images.unsplash.com/photo-1543167664-c92155e96916?q=80&w=2000&auto=format')",
-    "Geografiya": "url('https://images.unsplash.com/photo-1521295121683-bc014fe1003e?q=80&w=2000&auto=format')",
-    "Huquq": "url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2000&auto=format')",
-    "Rus tili": "url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000&auto=format')",
-    "Default": "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)"
+    "Kimyo": "url('https://images.pexels.com/photos/2280571/pexels-photo-2280571.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Biologiya": "url('https://images.pexels.com/photos/3322000/pexels-photo-3322000.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Ingliz tili": "url('https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Geografiya": "url('https://images.pexels.com/photos/41949/earth-earth-at-night-night-lights-41949.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Huquq": "url('https://images.pexels.com/photos/606541/pexels-photo-606541.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Rus tili": "url('https://images.pexels.com/photos/594365/pexels-photo-594365.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+    "Default": "linear-gradient(135deg, #0f2027, #203a43, #2c5364)"
 }
 
 def apply_styles(subject):
     bg = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""
     <style>
-    .stApp {{ background: {bg}; background-size: cover !important; background-position: center !important; background-attachment: fixed !important; }}
-    .stMarkdown, p, h1, h2, h3, span, label {{ color: white !important; font-family: 'Segoe UI', sans-serif; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
-    
-    /* VARIANTLARNI OPTIMALLASHTIRISH */
-    div[data-testid="stMarkdownContainer"] p {{ font-size: 18px !important; font-weight: 500; }}
-    
-    /* TUGMA STILLARI */
-    button[kind="primaryFormSubmit"], .stButton > button {{
-        width: 100% !important; background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
-        color: black !important; font-size: 22px !important; font-weight: bold !important; padding: 15px !important;
-        border-radius: 15px !important; border: none !important; box-shadow: 0px 5px 15px rgba(0,0,0,0.4) !important;
+    .stApp {{ 
+        background: {bg} no-repeat center center fixed; 
+        background-size: cover !important; 
+    }}
+    .stMarkdown, p, h1, h2, h3, span, label {{ 
+        color: white !important; 
+        text-shadow: 2px 2px 8px rgba(0,0,0,1); 
     }}
     
-    /* TEST OYNASI (BLURSIZ TINIQ) */
+    /* MA'LUMOT BOXI */
+    .info-box {{
+        background: rgba(0, 0, 0, 0.7);
+        padding: 20px;
+        border-radius: 15px;
+        border-left: 6px solid #92FE9D;
+        margin-bottom: 20px;
+    }}
+
+    /* TUGMALAR */
+    button[kind="primaryFormSubmit"], .stButton > button {{
+        width: 100% !important; 
+        background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
+        color: black !important; font-size: 22px !important; font-weight: bold !important; 
+        border-radius: 12px !important; border: none !important;
+        transition: 0.3s;
+    }}
+    
+    /* FORM OYNASI */
     div[data-testid="stForm"] {{
-        background: rgba(0, 0, 0, 0.75) !important;
-        padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(0, 0, 0, 0.8) !important;
+        padding: 40px; border-radius: 25px; 
+        border: 1px solid rgba(255, 255, 255, 0.15);
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- SAVOLLARNI VA VARIANTLARNI TAYYORLASH ---
+# --- TEST MANTIQI ---
 def prepare_test_data(df, subject):
     sub_qs = df[df['Fan'] == subject].copy()
-    # 30 ta savolni tanlash (muvozanatli)
     selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-    
     test_items = []
     for _, row in selected_qs.iterrows():
-        # Variantlarni ro'yxatga olish va aralashtirish
         options = [row['A'], row['B'], row['C'], row['D']]
-        random.shuffle(options)
+        random.shuffle(options) # Variatnlar chalkashadi
         test_items.append({
             "question": row['Savol'],
             "options": options,
@@ -120,15 +132,26 @@ q_df = load_questions_cached()
 if q_df is not None:
     available_subjects = q_df['Fan'].dropna().unique().tolist()
     
-    # --- 1. BOSHLANG'ICH SAHIFA ---
     if not st.session_state.test_run and st.session_state.final_score is None:
         apply_styles("Default")
-        st.title("🚀 Testmasters Online")
+        st.title("🎓 Testmasters Online")
         
         if st.session_state.completed:
-            st.error("⚠️ Siz testni topshirib bo'lgansiz.")
+            st.error("⚠️ Siz testni topshirib bo'lgansiz. Bir marta topshirishga ruxsat berilgan.")
         else:
-            st.markdown('<div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;border-left:5px solid #92FE9D;">📍 <b>DIQQAT:</b> Savollar va javob variantlari har safar tasodifiy tartibda chiqadi.</div>', unsafe_allow_html=True)
+            # YO'RIQNOMA QAYTARILDI
+            st.markdown("""
+            <div class="info-box">
+                <h3 style="margin-top:0;">📝 Yo'riqnoma:</h3>
+                <ul>
+                    <li>Ism-familiyangizni to'liq kiriting.</li>
+                    <li>Fan tanlangach, vaqt avtomatik hisoblanadi.</li>
+                    <li>Har bir testda savollar va variantlar chalkashib tushadi.</li>
+                    <li>Natijangiz avtomatik bazaga va o'qituvchiga yuboriladi.</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
             u_name = st.text_input("Ism-familiyangizni kiriting:", placeholder="Masalan: Ali Valiyev").strip()
             if u_name:
                 selected_subject = st.selectbox("Fanni tanlang:", available_subjects)
@@ -143,13 +166,12 @@ if q_df is not None:
                     st.session_state.test_run = True
                     st.rerun()
 
-    # --- 2. TEST JARAYONI ---
     if st.session_state.test_run:
         apply_styles(st.session_state.selected_subject)
         st.markdown(f"### 👤 O'quvchi: {st.session_state.full_name}")
         
         rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
-        st.sidebar.markdown(f'<div style="text-align:center;padding:20px;background:rgba(0,0,0,0.8);border-radius:15px;border:2px solid #92FE9D;"><h2 style="color:#92FE9D;margin:0;">⏳ {rem//60:02d}:{rem%60:02d}</h2><p style="margin:0;">QOLGAN VAQT</p></div>', unsafe_allow_html=True)
+        st.sidebar.markdown(f'<div style="text-align:center;padding:20px;background:rgba(0,0,0,0.8);border-radius:15px;border:2px solid #92FE9D;"><h2 style="color:#92FE9D;margin:0;">⏳ {rem//60:02d}:{rem%60:02d}</h2><p style="margin:0; color:white;">QOLGAN VAQT</p></div>', unsafe_allow_html=True)
         
         if rem <= 0:
             st.session_state.test_run = False
@@ -178,7 +200,6 @@ if q_df is not None:
         time.sleep(1)
         st.rerun()
 
-    # --- 3. NATIJA SAHIFASI ---
     if st.session_state.final_score:
         apply_styles("Default")
         res = st.session_state.final_score
@@ -187,7 +208,7 @@ if q_df is not None:
         <div style="background: rgba(0,0,0,0.85); padding: 40px; border-radius: 25px; border: 2px solid #92FE9D; text-align: center; margin-top: 20px;">
             <h2 style="color: white;">🎉 Natija: {res['name']}</h2>
             <h1 style="color: #92FE9D; font-size: 60px; margin: 20px 0;">{res['ball']}%</h1>
-            <p style="font-size: 22px;">To'g'ri javoblar: {res['score']} ta / {res['total']} ta</p>
-            <p style="color: #FFD700;">Natijangiz saqlandi va ustozga yuborildi.</p>
+            <p style="font-size: 22px; color: white;">To'g'ri javoblar: {res['score']} ta / {res['total']} ta</p>
+            <p style="color: #FFD700; font-weight: bold;">✅ Natijangiz bazaga saqlandi.</p>
         </div>
         """, unsafe_allow_html=True)
