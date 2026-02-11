@@ -3,6 +3,7 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import time
 import requests
+from datetime import datetime
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -14,7 +15,7 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2y
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- TELEGRAMGA NATIJANI YUBORISH FUNKSIYASI ---
+# --- TELEGRAMGA NATIJANI YUBORISH ---
 def send_to_telegram(name, subject, corrects, total, ball):
     text = (
         f"🏆 YANGI NATIJA!\n\n"
@@ -31,14 +32,35 @@ def send_to_telegram(name, subject, corrects, total, ball):
     except:
         pass
 
-# --- FONLAR VA TUGMA STILLARI (TINIQLASHTIRILDI) ---
+# --- GOOGLE SHEETS-GA SAQLASH ---
+def save_to_sheets(name, subject, corrects, total, ball):
+    try:
+        # Yangi natijani tayyorlash
+        new_data = pd.DataFrame([{
+            "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Ism-familiya": name,
+            "Fan": subject,
+            "To'g'ri javoblar": corrects,
+            "Umumiy savollar": total,
+            "Ball (%)": ball
+        }])
+        
+        # Google Sheets-ning "Results" varag'iga yozish
+        # Eslatma: Sheets-da "Results" nomli varaq ochilgan bo'lishi kerak
+        existing_res = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
+        updated_res = pd.concat([existing_res, new_data], ignore_index=True)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_res)
+    except Exception as e:
+        st.error(f"Sheetga saqlashda xatolik: {e}")
+
+# --- STILLAR ---
 bg_styles = {
-    "Kimyo": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1532187878418-9f1100188665?auto=format&fit=crop&w=1600&q=80')",
-    "Biologiya": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&w=1600&q=80')",
-    "Ingliz tili": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1600&q=80')",
-    "Geografiya": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1521295121683-bc014fe1003e?auto=format&fit=crop&w=1600&q=80')",
-    "Huquq": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1600&q=80')",
-    "Rus tili": "linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?auto=format&fit=crop&w=1600&q=80')",
+    "Kimyo": "url('https://images.unsplash.com/photo-1532187878418-9f1100188665?q=80&w=2000&auto=format')",
+    "Biologiya": "url('https://images.unsplash.com/photo-1530026405186-ed1f139313f8?q=80&w=2000&auto=format')",
+    "Ingliz tili": "url('https://images.unsplash.com/photo-1543167664-c92155e96916?q=80&w=2000&auto=format')",
+    "Geografiya": "url('https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000&auto=format')",
+    "Huquq": "url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?q=80&w=2000&auto=format')",
+    "Rus tili": "url('https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000&auto=format')",
     "Default": "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)"
 }
 
@@ -46,37 +68,15 @@ def apply_styles(subject):
     bg = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""
     <style>
-    .stApp {{ 
-        background: {bg}; 
-        background-size: cover; 
-        background-attachment: fixed; 
-        background-position: center;
-    }}
-    .stMarkdown, p, h1, h2, h3, span, label {{ 
-        color: white !important; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    }}
-    
+    .stApp {{ background: {bg}; background-size: cover !important; background-attachment: fixed !important; background-position: center !important; }}
+    .stMarkdown, p, h1, h2, h3, span, label {{ color: white !important; font-family: 'Segoe UI', sans-serif; text-shadow: 2px 2px 4px rgba(0,0,0,0.9); }}
     button[kind="primaryFormSubmit"], .stButton > button {{
-        width: 100% !important;
-        background: linear-gradient(90deg, #FF512F 0%, #DD2476 100%) !important;
-        color: white !important;
-        font-size: 20px !important;
-        font-weight: bold !important;
-        padding: 15px !important;
-        border-radius: 15px !important;
-        border: none !important;
-        box-shadow: 0px 5px 20px rgba(0,0,0,0.4) !important;
+        width: 100% !important; background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
+        color: black !important; font-size: 22px !important; font-weight: bold !important; padding: 15px !important;
+        border-radius: 15px !important; border: none !important; box-shadow: 0px 4px 15px rgba(0,0,0,0.5) !important;
     }}
-    
-    div[data-testid="stForm"] {{
-        background: rgba(255, 255, 255, 0.15) !important;
-        backdrop-filter: blur(15px);
-        padding: 30px;
-        border-radius: 25px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }}
+    div[data-testid="stForm"] {{ background: rgba(0, 0, 0, 0.7) !important; backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.2); }}
+    .info-box {{ background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 15px; border-left: 5px solid #92FE9D; margin-bottom: 20px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -123,7 +123,20 @@ if q_df is not None:
         if st.session_state.completed:
             st.error("⚠️ Siz testni topshirib bo'lgansiz. Bir marta topshirishga ruxsat berilgan.")
         else:
-            u_name = st.text_input("Ism-familiyangizni kiriting:", placeholder="Ali Valiyev").strip()
+            # YO'RIQNOMA (SOZLAMALAR)
+            st.markdown("""
+            <div class="info-box">
+                <h4>📝 O'quvchilar diqqatiga:</h4>
+                <ul>
+                    <li>Ism-familiyangizni to'liq kiriting.</li>
+                    <li>Fan tanlangach, vaqt avtomatik hisoblanadi.</li>
+                    <li>Testni faqat <b>bir marta</b> topshirish mumkin.</li>
+                    <li>Natijangiz avtomatik ravishda bazaga saqlanadi.</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            u_name = st.text_input("Ism-familiyangizni kiriting:", placeholder="Masalan: Ali Valiyev").strip()
             if u_name:
                 selected_subject = st.selectbox("Fanni tanlang:", available_subjects)
                 apply_styles(selected_subject)
@@ -145,7 +158,7 @@ if q_df is not None:
         
         rem = max(0, st.session_state.total_time - int(time.time() - st.session_state.start_time))
         st.sidebar.markdown(f"""
-        <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.7); border-radius: 15px; border: 2px solid #92FE9D;">
+        <div style="text-align: center; padding: 20px; background: rgba(0,0,0,0.8); border-radius: 15px; border: 2px solid #92FE9D;">
             <h2 style="margin:0; color: #92FE9D;">⏳ {rem//60:02d}:{rem%60:02d}</h2>
             <p style="color: white; margin:0;">QOLGAN VAQT</p>
         </div>""", unsafe_allow_html=True)
@@ -166,7 +179,9 @@ if q_df is not None:
                 total = len(st.session_state.questions)
                 ball = round((corrects / total) * 100, 1)
                 
+                # Natijalarni yuborish va saqlash
                 send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, total, ball)
+                save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, total, ball)
                 
                 st.session_state.final_score = {
                     "name": st.session_state.full_name,
@@ -187,14 +202,12 @@ if q_df is not None:
         st.balloons()
         st.success(f"### 🎉 Natijangiz, {res['name']}!")
         
-        # Natija oynasi tiniq va aniq ko'rinishi uchun alohida blok
         st.markdown(f"""
-        <div style="background: rgba(0,0,0,0.6); padding: 25px; border-radius: 20px; border: 1px solid #92FE9D; text-align: center;">
-            <h2 style="color: white;">Fan: {res['subject']}</h2>
-            <h1 style="color: #92FE9D;">Ball: {res['ball']}%</h1>
-            <p style="font-size: 20px;">To'g'ri javoblar: {res['score']} / {res['total']}</p>
-            <hr>
-            <p style="color: #ff4b4b;">⚠️ Test yakunlandi. Sizga muvaffaqiyat tilaymiz!</p>
+        <div style="background: rgba(0,0,0,0.8); padding: 40px; border-radius: 25px; border: 2px solid #92FE9D; text-align: center; margin-top: 20px;">
+            <h2 style="color: white; margin-bottom: 10px;">📚 Fan: {res['subject']}</h2>
+            <h1 style="color: #92FE9D; font-size: 50px; margin: 20px 0;">{res['ball']}%</h1>
+            <p style="font-size: 24px; color: white;">To'g'ri javoblar: <b>{res['score']} / {res['total']}</b></p>
+            <hr style="border: 0.5px solid rgba(255,255,255,0.2); margin: 30px 0;">
+            <p style="color: #FFD700; font-size: 18px;">✅ Natijangiz saqlandi va ustozga yuborildi.</p>
         </div>
         """, unsafe_allow_html=True)
-        # "Qaytish" tugmasi olib tashlandi, shunda o'quvchi qayta ishlay olmaydi.
