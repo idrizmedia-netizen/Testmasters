@@ -34,15 +34,15 @@ def apply_styles(subject):
     bg_url = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""
     <style>
-    /* ASOSIY FON */
+    /* ASOSIY FON TEST VA NATIJA UCHUN HAM */
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url("{bg_url}") no-repeat center center fixed !important;
+        background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{bg_url}") no-repeat center center fixed !important;
         background-size: cover !important;
     }}
     
-    /* YO'RIQNOMA VA FORMALAR */
+    /* FORM VA BLOKLAR */
     .info-box {{
-        background: rgba(0, 0, 0, 0.75);
+        background: rgba(0, 0, 0, 0.8);
         padding: 25px; border-radius: 15px;
         border-left: 8px solid #00C9FF; margin-bottom: 25px;
     }}
@@ -50,25 +50,23 @@ def apply_styles(subject):
     div[data-testid="stForm"] {{
         background: rgba(0, 0, 0, 0.8) !important;
         padding: 30px; border-radius: 20px; 
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
     }}
 
-    /* GRADIENT TUGMA */
+    /* TESTNI YAKUNLASH GRADIENT TUGMASI */
     button[kind="primaryFormSubmit"], .stButton > button {{
         width: 100% !important; 
-        background: linear-gradient(45deg, #00C9FF, #92FE9D) !important;
+        background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
         color: black !important; font-size: 22px !important; font-weight: bold !important; 
-        border-radius: 15px !important; border: none !important;
-        box-shadow: 0px 4px 15px rgba(0, 201, 255, 0.4);
-        transition: 0.3s;
+        border-radius: 12px !important; border: none !important; padding: 10px !important;
+        box-shadow: 0px 4px 15px rgba(0, 201, 255, 0.5);
     }}
     
-    /* GRADIENT VAQT BLOKI */
+    /* TAYMER GRADIENTI */
     .timer-card {{
-        background: linear-gradient(135deg, rgba(0, 201, 255, 0.9), rgba(146, 254, 157, 0.9));
-        padding: 20px; border-radius: 15px; text-align: center;
+        background: linear-gradient(135deg, #00C9FF, #92FE9D);
+        padding: 15px; border-radius: 12px; text-align: center;
         color: black !important; font-weight: bold;
-        box-shadow: 0px 4px 20px rgba(0,0,0,0.5);
     }}
 
     .stMarkdown, p, h1, h2, h3, span, label {{ 
@@ -101,7 +99,7 @@ def load_questions():
         return df
     except: return None
 
-# --- SESSION STATE ---
+# --- INITIAL SESSION STATE ---
 if 'test_run' not in st.session_state: st.session_state.test_run = False
 if 'final_score' not in st.session_state: st.session_state.final_score = None
 if 'completed' not in st.session_state: st.session_state.completed = False
@@ -117,11 +115,12 @@ if q_df is not None:
         st.title("🎓 Testmasters Online")
         
         if st.session_state.completed:
-            st.error("⚠️ Siz testni topshirib bo'ldingiz. Qayta urinish taqiqlanadi!")
+            st.error("⚠️ Test yakunlangan. Qayta urinish mumkin emas!")
+            st.markdown(f'<a href="https://t.me/Testmasters_LC" target="_blank"><button style="width:100%; background: #0088cc; color:white; border-radius:10px; border:none; padding:10px; font-weight:bold;">Kanalimizga o\'tish</button></a>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="info-box"><h3>📝 Yo\'riqnoma:</h3><ul><li>Ism-familiyani to\'liq yozing.</li><li>Vaqt tugashidan oldin yakunlang.</li></ul></div>', unsafe_allow_html=True)
-            u_name = st.text_input("Ism-familiyangiz:", key="main_name")
-            selected_subject = st.selectbox("Fanni tanlang:", available_subjects)
+            st.markdown('<div class="info-box"><h3>📝 Yo\'riqnoma:</h3><ul><li>Ism-familiyani to\'liq yozing.</li><li>Vaqt tugamasdan testni yakunlang.</li></ul></div>', unsafe_allow_html=True)
+            u_name = st.text_input("Ism-familiyangiz:", key="name_input")
+            selected_subject = st.selectbox("Fanni tanlang:", available_subjects, key="subj_select")
             
             if st.button("🚀 TESTNI BOSHLASH") and u_name:
                 sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
@@ -144,14 +143,13 @@ if q_df is not None:
     elif st.session_state.test_run:
         apply_styles(st.session_state.selected_subject)
         
-        # Taymer mantiqi (Yuradigan qilish uchun har 1 soniyada yangilanadi)
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
         
         st.sidebar.markdown(f"""
             <div class="timer-card">
-                <h1 style="color:black !important; margin:0;">{rem//60:02d}:{rem%60:02d}</h1>
-                <p style="color:black !important; margin:0;">QOLGAN VAQT</p>
+                <h2 style="margin:0; color:black;">{rem//60:02d}:{rem%60:02d}</h2>
+                <small style="color:black;">VAQT QOLDI</small>
             </div>
         """, unsafe_allow_html=True)
 
@@ -168,9 +166,11 @@ if q_df is not None:
                 st.write(f"**{i+1}. {item['q']}**")
                 user_answers[i] = st.radio("Javobingiz:", item['o'], index=None, key=f"q_{i}")
             
+            # GRADIENT TUGMA SHU YERDA
             if st.form_submit_button("🏁 TESTNI YAKUNLASH"):
                 corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
+                
                 send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 
@@ -179,7 +179,6 @@ if q_df is not None:
                 st.session_state.completed = True
                 st.rerun()
         
-        # Vaqt yurishi uchun (avtomatik yangilanish)
         time.sleep(1)
         st.rerun()
 
@@ -189,9 +188,17 @@ if q_df is not None:
         res = st.session_state.final_score
         st.balloons()
         st.markdown(f"""
-            <div style="background:rgba(0,0,0,0.8); padding:40px; border-radius:25px; text-align:center; border:3px solid #92FE9D;">
-                <h1 style="color:#92FE9D; font-size:70px;">{res['ball']}%</h1>
-                <h2>{res['name']}</h2>
-                <p>Natijangiz saqlandi. Tizimdan chiqishingiz mumkin.</p>
+            <div style="background:rgba(0,0,0,0.85); padding:40px; border-radius:25px; text-align:center; border:2px solid #92FE9D;">
+                <h1 style="color:#92FE9D; font-size:70px; margin:0;">{res['ball']}%</h1>
+                <h2 style="margin-top:10px;">{res['name']}</h2>
+                <p style="font-size:18px;">To'g'ri javoblar: {res['score']} / {res['total']}</p>
+                <hr style="border:0.5px solid rgba(255,255,255,0.2);">
+                <p>Natijangiz saqlandi!</p>
+                <p>Yangi testlar va yangiliklardan xabardor bo'lish uchun:</p>
+                <a href="https://t.me/Testmasters_LC" target="_blank">
+                    <button style="width:100%; background: linear-gradient(90deg, #0088cc, #00C9FF); color:white; border-radius:12px; border:none; padding:12px; font-weight:bold; cursor:pointer;">
+                        📢 KANALIMIZGA O'TISH
+                    </button>
+                </a>
             </div>
         """, unsafe_allow_html=True)
