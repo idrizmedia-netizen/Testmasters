@@ -34,45 +34,42 @@ def apply_styles(subject):
     bg_url = bg_styles.get(subject, bg_styles["Default"])
     st.markdown(f"""
     <style>
-    /* ASOSIY FON TEST VA NATIJA UCHUN HAM */
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{bg_url}") no-repeat center center fixed !important;
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{bg_url}") no-repeat center center fixed !important;
         background-size: cover !important;
     }}
     
-    /* FORM VA BLOKLAR */
     .info-box {{
         background: rgba(0, 0, 0, 0.8);
-        padding: 25px; border-radius: 15px;
-        border-left: 8px solid #00C9FF; margin-bottom: 25px;
+        padding: 20px; border-radius: 15px;
+        border-left: 5px solid #00C9FF; margin-bottom: 20px;
     }}
 
-    div[data-testid="stForm"] {{
-        background: rgba(0, 0, 0, 0.8) !important;
-        padding: 30px; border-radius: 20px; 
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }}
-
-    /* TESTNI YAKUNLASH GRADIENT TUGMASI */
-    button[kind="primaryFormSubmit"], .stButton > button {{
-        width: 100% !important; 
+    /* TUGMALAR VA TESTNI YAKUNLASH TUGMASI UCHUN MAJBURIY GRADIENT */
+    div[data-testid="stFormSubmitButton"] button, .stButton > button {{
+        width: 100% !important;
         background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
-        color: black !important; font-size: 22px !important; font-weight: bold !important; 
-        border-radius: 12px !important; border: none !important; padding: 10px !important;
-        box-shadow: 0px 4px 15px rgba(0, 201, 255, 0.5);
+        color: black !important;
+        font-size: 20px !important;
+        font-weight: bold !important;
+        border-radius: 12px !important;
+        border: none !important;
+        padding: 12px !important;
+        transition: 0.3s;
     }}
-    
-    /* TAYMER GRADIENTI */
+
     .timer-card {{
         background: linear-gradient(135deg, #00C9FF, #92FE9D);
         padding: 15px; border-radius: 12px; text-align: center;
-        color: black !important; font-weight: bold;
+        color: black !important; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }}
 
-    .stMarkdown, p, h1, h2, h3, span, label {{ 
-        color: white !important; 
-        text-shadow: 2px 2px 8px rgba(0,0,0,1); 
+    div[data-testid="stForm"] {{
+        background: rgba(0, 0, 0, 0.7) !important;
+        border-radius: 20px !important;
     }}
+
+    .stMarkdown, p, h1, h2, h3, label {{ color: white !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -99,26 +96,28 @@ def load_questions():
         return df
     except: return None
 
-# --- INITIAL SESSION STATE ---
+# --- SESSION STATE ---
 if 'test_run' not in st.session_state: st.session_state.test_run = False
 if 'final_score' not in st.session_state: st.session_state.final_score = None
-if 'completed' not in st.session_state: st.session_state.completed = False
+if 'completed_subjects' not in st.session_state: st.session_state.completed_subjects = []
 
 q_df = load_questions()
 
 if q_df is not None:
-    available_subjects = q_df['Fan'].dropna().unique().tolist()
+    # Faqat topshirilmagan fanlarni chiqarish
+    all_subjects = q_df['Fan'].dropna().unique().tolist()
+    available_subjects = [s for s in all_subjects if s not in st.session_state.completed_subjects]
 
     # 1. BOSHLANG'ICH OYNA
     if not st.session_state.test_run and st.session_state.final_score is None:
         apply_styles("Default")
         st.title("🎓 Testmasters Online")
         
-        if st.session_state.completed:
-            st.error("⚠️ Test yakunlangan. Qayta urinish mumkin emas!")
-            st.markdown(f'<a href="https://t.me/Testmasters_LC" target="_blank"><button style="width:100%; background: #0088cc; color:white; border-radius:10px; border:none; padding:10px; font-weight:bold;">Kanalimizga o\'tish</button></a>', unsafe_allow_html=True)
+        if not available_subjects:
+            st.warning("🎉 Siz barcha fanlardan test topshirib bo'ldingiz!")
+            st.info("Natijalaringiz bazaga saqlandi.")
         else:
-            st.markdown('<div class="info-box"><h3>📝 Yo\'riqnoma:</h3><ul><li>Ism-familiyani to\'liq yozing.</li><li>Vaqt tugamasdan testni yakunlang.</li></ul></div>', unsafe_allow_html=True)
+            st.markdown('<div class="info-box"><h3>📝 Yo\'riqnoma:</h3><ul><li>Har bir fandan faqat 1 marta o\'tish mumkin.</li><li>Ism-familiyani o\'zgartirmang.</li></ul></div>', unsafe_allow_html=True)
             u_name = st.text_input("Ism-familiyangiz:", key="name_input")
             selected_subject = st.selectbox("Fanni tanlang:", available_subjects, key="subj_select")
             
@@ -146,6 +145,7 @@ if q_df is not None:
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
         
+        # Sidebar taymer
         st.sidebar.markdown(f"""
             <div class="timer-card">
                 <h2 style="margin:0; color:black;">{rem//60:02d}:{rem%60:02d}</h2>
@@ -153,20 +153,23 @@ if q_df is not None:
             </div>
         """, unsafe_allow_html=True)
 
+        # VAQT TUGASA AVTOMATIK YAKUNLASH
         if rem <= 0:
             st.session_state.test_run = False
-            st.session_state.completed = True
+            st.session_state.final_score = {"name": st.session_state.full_name, "ball": 0, "score": 0, "total": len(st.session_state.test_items)}
+            st.session_state.completed_subjects.append(st.session_state.selected_subject)
             st.rerun()
 
-        st.markdown(f"### 👤 {st.session_state.full_name} | 📚 {st.session_state.selected_subject}")
+        # Ism va fanni sidebar yoki kichikroq qilib chiqarish (takrorlanishni kamaytirish uchun)
+        st.sidebar.info(f"👤 {st.session_state.full_name}\n\n📚 {st.session_state.selected_subject}")
         
-        with st.form("quiz_form"):
+        with st.form("quiz_form", clear_on_submit=False):
             user_answers = {}
             for i, item in enumerate(st.session_state.test_items):
-                st.write(f"**{i+1}. {item['q']}**")
-                user_answers[i] = st.radio("Javobingiz:", item['o'], index=None, key=f"q_{i}")
+                st.markdown(f"**{i+1}. {item['q']}**")
+                user_answers[i] = st.radio("Javobingiz:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+                st.write("---")
             
-            # GRADIENT TUGMA SHU YERDA
             if st.form_submit_button("🏁 TESTNI YAKUNLASH"):
                 corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
@@ -175,8 +178,8 @@ if q_df is not None:
                 save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 
                 st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball, "score": corrects, "total": len(st.session_state.test_items)}
+                st.session_state.completed_subjects.append(st.session_state.selected_subject)
                 st.session_state.test_run = False
-                st.session_state.completed = True
                 st.rerun()
         
         time.sleep(1)
@@ -194,11 +197,12 @@ if q_df is not None:
                 <p style="font-size:18px;">To'g'ri javoblar: {res['score']} / {res['total']}</p>
                 <hr style="border:0.5px solid rgba(255,255,255,0.2);">
                 <p>Natijangiz saqlandi!</p>
-                <p>Yangi testlar va yangiliklardan xabardor bo'lish uchun:</p>
-                <a href="https://t.me/Testmasters_LC" target="_blank">
-                    <button style="width:100%; background: linear-gradient(90deg, #0088cc, #00C9FF); color:white; border-radius:12px; border:none; padding:12px; font-weight:bold; cursor:pointer;">
-                        📢 KANALIMIZGA O'TISH
-                    </button>
-                </a>
+                <button onclick="window.location.reload()" style="width:100%; background: #00C9FF; color:black; border-radius:12px; border:none; padding:12px; font-weight:bold; cursor:pointer;">
+                    🔄 BOSHQA FANLARNI TOPSHIRISH
+                </button>
             </div>
         """, unsafe_allow_html=True)
+        
+        if st.button("Bosh sahifaga qaytish"):
+            st.session_state.final_score = None
+            st.rerun()
