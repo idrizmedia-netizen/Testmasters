@@ -43,7 +43,7 @@ def apply_styles(subject):
         padding: 20px; border-radius: 15px;
         border-left: 5px solid #00C9FF; margin-bottom: 20px;
     }}
-    div[data-testid="stFormSubmitButton"] button, .stButton > button {{
+    div[data-testid="stFormSubmitButton"] button {{
         width: 100% !important;
         background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important;
         color: black !important; font-size: 20px !important; font-weight: bold !important;
@@ -72,7 +72,6 @@ def save_to_sheets(name, subject, corrects, total, ball):
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_res)
     except: pass
 
-@st.cache_data(ttl=10)
 def check_already_finished(name, subject):
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
@@ -90,15 +89,15 @@ def load_questions():
     except: return None
 
 # --- INITIAL SESSION STATE ---
-if 'test_run' not in st.session_state: st.session_state.test_run = False
+if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'final_score' not in st.session_state: st.session_state.final_score = None
 
 q_df = load_questions()
 
-# --- ASOSIY MANTIQIY TUZILMA ---
+# --- ASOSIY MANTIQ ---
 
-# 1. NATIJA OYNASI (Test tugaganda birinchi navbatda tekshiriladi)
-if st.session_state.final_score:
+# A. NATIJA SAHIFASI
+if st.session_state.page == "RESULT":
     apply_styles("Default")
     res = st.session_state.final_score
     st.balloons()
@@ -110,30 +109,26 @@ if st.session_state.final_score:
         </div>
     """, unsafe_allow_html=True)
     if st.button("🔄 BOSH SAHIFAGA QAYTISH"):
-        st.session_state.final_score = None
-        st.session_state.test_run = False
+        st.session_state.page = "HOME"
         st.rerun()
 
-# 2. TEST JARAYONI (Agar test ishlayotgan bo'lsa, boshqa hech narsa ko'rinmaydi)
-elif st.session_state.test_run:
+# B. TEST TOPSHIRISH SAHIFASI
+elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     
-    # Vaqtni hisoblash
     elapsed = time.time() - st.session_state.start_time
     rem = max(0, int(st.session_state.total_time - elapsed))
     
-    # Taymer va foydalanuvchi ma'lumotlari yon panelda
+    # Sidebar faqat test paytida ma'lumot beradi
     st.sidebar.markdown(f'<div class="timer-card"><h2>{rem//60:02d}:{rem%60:02d}</h2><small>VAQT QOLDI</small></div>', unsafe_allow_html=True)
-    st.sidebar.markdown(f"**👤 Ism:** {st.session_state.full_name}")
-    st.sidebar.markdown(f"**📚 Fan:** {st.session_state.selected_subject}")
+    st.sidebar.write(f"👤 **{st.session_state.full_name}**")
+    st.sidebar.write(f"📚 **{st.session_state.selected_subject}**")
 
     if rem <= 0:
         st.error("⌛ Vaqt tugadi!")
-        # Vaqt tugaganda avtomatik yakunlash qismi... (pastdagi submit bilan bir xil mantiq)
-        st.session_state.test_run = False
+        st.session_state.page = "RESULT" # Yoki natijani hisoblab o'tkazish
         st.rerun()
 
-    # Savollar formasi
     with st.form("quiz_form"):
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
@@ -148,20 +143,17 @@ elif st.session_state.test_run:
                 corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 
-                # Saqlash va yuborish
                 send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 
-                # Natijani sessionga yozish
-                st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball, "score": corrects, "total": len(st.session_state.test_items)}
-                st.session_state.test_run = False
+                st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
+                st.session_state.page = "RESULT"
                 st.rerun()
     
-    # Sahifani avtomatik yangilash (taymer uchun)
     time.sleep(1)
     st.rerun()
 
-# 3. KIRISH SAHIFA (Test ham ishlamayotgan, natija ham yo'q bo'lsa)
+# C. BOSH SAHIFA (KIRISH)
 else:
     apply_styles("Default")
     st.title("🎓 Testmasters Online")
@@ -172,10 +164,10 @@ else:
         <li>Test boshlangach, taymer ishga tushadi.</li>
         </ul></div>''', unsafe_allow_html=True)
     
-    u_name = st.text_input("Ism-familiyangiz:", key="name_input")
+    u_name = st.text_input("Ism-familiyangiz:", key="main_name_input")
     
     if q_df is not None:
-        all_subs = q_df['Fan'].dropna().unique().tolist()
+        all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
         selected_subject = st.selectbox("Fanni tanlang:", all_subs)
 
         if st.button("🚀 TESTNI BOSHLASH"):
@@ -184,7 +176,6 @@ else:
             elif check_already_finished(u_name, selected_subject):
                 st.warning(f"⚠️ {u_name}, siz bu fandan ({selected_subject}) allaqachon test topshirgansiz!")
             else:
-                # Savollarni tayyorlash
                 sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
                 selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
                 
@@ -193,19 +184,14 @@ else:
                     opts = [str(row['A']), str(row['B']), str(row['C']), str(row['D'])]
                     random.shuffle(opts)
                     test_items.append({
-                        "q": row['Savol'], 
-                        "o": opts, 
-                        "c": str(row['Javob']), 
+                        "q": row['Savol'], "o": opts, "c": str(row['Javob']), 
                         "t": pd.to_numeric(row['Vaqt'], errors='coerce') or 30
                     })
                 
-                # Sessionni yangilash
                 st.session_state.test_items = test_items
                 st.session_state.total_time = sum(item['t'] for item in test_items)
                 st.session_state.start_time = time.time()
                 st.session_state.full_name = u_name
                 st.session_state.selected_subject = selected_subject
-                st.session_state.test_run = True
+                st.session_state.page = "TEST" # Sahifani o'zgartirish
                 st.rerun()
-    else:
-        st.error("Ma'lumotlar bazasiga ulanishda xatolik yuz berdi!")
