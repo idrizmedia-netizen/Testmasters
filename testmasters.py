@@ -72,14 +72,14 @@ def save_to_sheets(name, subject, corrects, total, ball):
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_res)
     except: pass
 
-@st.cache_data(ttl=60)
-def get_completed_subjects_from_sheet(name):
+@st.cache_data(ttl=10)
+def check_already_finished(name, subject):
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
-        # Ism mos keladigan qatorlarni olamiz
-        done = df[df['Ism-familiya'].str.strip().str.lower() == name.strip().lower()]
-        return done['Fan'].unique().tolist()
-    except: return []
+        exists = df[(df['Ism-familiya'].str.strip().str.lower() == name.strip().lower()) & 
+                    (df['Fan'].str.strip().str.lower() == subject.strip().lower())]
+        return not exists.empty
+    except: return False
 
 @st.cache_data(ttl=600)
 def load_questions():
@@ -89,105 +89,100 @@ def load_questions():
         return df
     except: return None
 
-# --- SESSION STATE ---
+# --- INITIAL SESSION STATE ---
 if 'test_run' not in st.session_state: st.session_state.test_run = False
 if 'final_score' not in st.session_state: st.session_state.final_score = None
 
 q_df = load_questions()
 
-if q_df is not None:
-    # 1. BOSHLANG'ICH OYNA
-    if not st.session_state.test_run and st.session_state.final_score is None:
-        apply_styles("Default")
-        st.title("🎓 Testmasters Online")
-        
-        st.markdown('''<div class="info-box"><h3>📝 Yo'riqnoma:</h3><ul>
-            <li>Ism-familiyangizni to'liq va to'g'ri kiriting.</li>
-            <li>Har bir fandan faqat 1 marta test topshirish mumkin.</li>
-            <li><b>Sertifikatni yuklab olish uchun ism-familiyangizni to'liq kiriting.</b></li>
-            </ul></div>''', unsafe_allow_html=True)
-            
-        u_name = st.text_input("Ism-familiyangiz:", key="name_input")
-        
-        if u_name:
-            completed = get_completed_subjects_from_sheet(u_name)
-            all_subjects = q_df['Fan'].dropna().unique().tolist()
-            available_subjects = [s for s in all_subjects if s not in completed]
-            
-            if not available_subjects:
-                st.warning(f"⚠️ {u_name}, siz barcha fanlardan test topshirib bo'lgansiz!")
-            else:
-                selected_subject = st.selectbox("Fanni tanlang:", available_subjects)
-                if st.button("🚀 TESTNI BOSHLASH"):
-                    sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
-                    selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-                    test_items = []
-                    for _, row in selected_qs.iterrows():
-                        opts = [row['A'], row['B'], row['C'], row['D']]
-                        random.shuffle(opts)
-                        test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "t": pd.to_numeric(row['Vaqt'], errors='coerce') or 30})
-                    
-                    st.session_state.test_items = test_items
-                    st.session_state.total_time = sum(item['t'] for item in test_items)
-                    st.session_state.start_time = time.time()
-                    st.session_state.full_name = u_name
-                    st.session_state.selected_subject = selected_subject
-                    st.session_state.test_run = True
-                    st.rerun()
+# --- ASOSIY MANTIQ ---
 
-    # 2. TEST JARAYONI
-    elif st.session_state.test_run:
-        apply_styles(st.session_state.selected_subject)
-        elapsed = time.time() - st.session_state.start_time
-        rem = max(0, int(st.session_state.total_time - elapsed))
-        
-        st.sidebar.markdown(f'<div class="timer-card"><h2>{rem//60:02d}:{rem%60:02d}</h2><small>VAQT QOLDI</small></div>', unsafe_allow_html=True)
+# 1. TEST JARAYONI (Agar test ishlayotgan bo'lsa, boshqa hamma narsa yashiriladi)
+if st.session_state.test_run:
+    apply_styles(st.session_state.selected_subject)
+    elapsed = time.time() - st.session_state.start_time
+    rem = max(0, int(st.session_state.total_time - elapsed))
+    
+    st.sidebar.markdown(f'<div class="timer-card"><h2>{rem//60:02d}:{rem%60:02d}</h2><small>VAQT QOLDI</small></div>', unsafe_allow_html=True)
+    st.sidebar.info(f"👤 {st.session_state.full_name}\n\n📚 {st.session_state.selected_subject}")
 
-        if rem <= 0:
-            st.session_state.test_run = False
-            st.session_state.final_score = {"name": st.session_state.full_name, "ball": 0, "score": 0, "total": len(st.session_state.test_items)}
-            st.rerun()
-
-        st.sidebar.info(f"👤 {st.session_state.full_name}\n\n📚 {st.session_state.selected_subject}")
-        
-        with st.form("quiz_form"):
-            user_answers = {}
-            for i, item in enumerate(st.session_state.test_items):
-                st.markdown(f"**{i+1}. {item['q']}**")
-                user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
-                st.write("---")
-            
-            submitted = st.form_submit_button("🏁 TESTNI YAKUNLASH")
-            if submitted:
-                # 2-BAND: TO'LIQ BELGILANGANINI TEKSHIRISH
-                if None in user_answers.values():
-                    st.error("⚠️ Iltimos, barcha savollarga javob bering!")
-                else:
-                    corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
-                    ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-                    send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
-                    save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
-                    st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball, "score": corrects, "total": len(st.session_state.test_items)}
-                    st.session_state.test_run = False
-                    st.rerun()
-        time.sleep(1)
+    if rem <= 0:
+        st.session_state.test_run = False
+        st.session_state.final_score = {"name": st.session_state.full_name, "ball": 0, "score": 0, "total": len(st.session_state.test_items)}
         st.rerun()
 
-    # 3. NATIJA OYNASI
-    elif st.session_state.final_score:
-        apply_styles("Default")
-        res = st.session_state.final_score
-        st.balloons()
-        st.markdown(f"""
-            <div style="background:rgba(0,0,0,0.85); padding:40px; border-radius:25px; text-align:center; border:2px solid #92FE9D;">
-                <h1 style="color:#92FE9D; font-size:70px; margin:0;">{res['ball']}%</h1>
-                <h2 style="margin-top:10px;">{res['name']}</h2>
-                <p>Natijangiz saqlandi!</p>
-                <button onclick="window.location.reload()" style="width:100%; background: #00C9FF; color:black; border-radius:12px; border:none; padding:12px; font-weight:bold; cursor:pointer;">
-                    🔄 BOSHQA FANLARNI TOPSHIRISH
-                </button>
-            </div>
-        """, unsafe_allow_html=True)
-        if st.button("Bosh sahifaga qaytish"):
-            st.session_state.final_score = None
+    with st.form("quiz_form"):
+        user_answers = {}
+        for i, item in enumerate(st.session_state.test_items):
+            st.markdown(f"**{i+1}. {item['q']}**")
+            user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+            st.write("---")
+        
+        if st.form_submit_button("🏁 TESTNI YAKUNLASH"):
+            if None in user_answers.values():
+                st.error("⚠️ Iltimos, barcha savollarga javob bering!")
+            else:
+                corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
+                ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
+                send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                save_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball, "score": corrects, "total": len(st.session_state.test_items)}
+                st.session_state.test_run = False
+                st.rerun()
+    time.sleep(1)
+    st.rerun()
+
+# 2. NATIJA OYNASI
+elif st.session_state.final_score:
+    apply_styles("Default")
+    res = st.session_state.final_score
+    st.balloons()
+    st.markdown(f"""
+        <div style="background:rgba(0,0,0,0.85); padding:40px; border-radius:25px; text-align:center; border:2px solid #92FE9D;">
+            <h1 style="color:#92FE9D; font-size:70px; margin:0;">{res['ball']}%</h1>
+            <h2 style="margin-top:10px;">{res['name']}</h2>
+            <p>Natijangiz saqlandi!</p>
+            <button onclick="window.location.reload()" style="width:100%; background: #00C9FF; color:black; border-radius:12px; border:none; padding:12px; font-weight:bold; cursor:pointer;">
+                🔄 BOSHQA FANLARNI TOPSHIRISH
+            </button>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("Bosh sahifaga qaytish"):
+        st.session_state.final_score = None
+        st.rerun()
+
+# 3. BOSHLANG'ICH SAHIFA (Faqat test ishlamayotgan bo'lsa chiqadi)
+else:
+    apply_styles("Default")
+    st.title("🎓 Testmasters Online")
+    st.markdown('''<div class="info-box"><h3>📝 Yo'riqnoma:</h3><ul>
+        <li>Ism-familiyangizni to'liq va to'g'ri kiriting.</li>
+        <li>Har bir fandan faqat 1 marta test topshirish mumkin.</li>
+        <li><b>Sertifikatni yuklab olish uchun ism-familiyangizni to'liq kiriting.</b></li>
+        </ul></div>''', unsafe_allow_html=True)
+    
+    u_name = st.text_input("Ism-familiyangiz:", key="name_input")
+    all_subs = q_df['Fan'].dropna().unique().tolist()
+    selected_subject = st.selectbox("Fanni tanlang:", all_subs)
+
+    if st.button("🚀 TESTNI BOSHLASH"):
+        if not u_name:
+            st.error("⚠️ Iltimos, ismingizni yozing!")
+        elif check_already_finished(u_name, selected_subject):
+            st.warning(f"⚠️ {u_name}, siz bu fandan ({selected_subject}) allaqachon test topshirgansiz!")
+        else:
+            sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
+            selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
+            test_items = []
+            for _, row in selected_qs.iterrows():
+                opts = [row['A'], row['B'], row['C'], row['D']]
+                random.shuffle(opts)
+                test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "t": pd.to_numeric(row['Vaqt'], errors='coerce') or 30})
+            
+            st.session_state.test_items = test_items
+            st.session_state.total_time = sum(item['t'] for item in test_items)
+            st.session_state.start_time = time.time()
+            st.session_state.full_name = u_name
+            st.session_state.selected_subject = selected_subject
+            st.session_state.test_run = True
             st.rerun()
