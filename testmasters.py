@@ -30,7 +30,7 @@ def apply_styles(subject="Default"):
     <style>
     .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; }}
     .info-box {{ background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 20px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }}
-    .timer-card {{ background: linear-gradient(90deg, #FF4B4B, #FF9068); padding: 15px; border-radius: 15px; text-align: center; color: white !important; font-size: 22px; font-weight: bold; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(255,75,75,0.3); }}
+    .timer-card {{ background: linear-gradient(90deg, #FF4B4B, #FF9068); padding: 15px; border-radius: 15px; text-align: center; color: white !important; font-size: 24px; font-weight: bold; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(255,75,75,0.4); }}
     .spin-text {{ font-size: 40px; font-weight: bold; text-align: center; color: #00C9FF; }}
     div[data-testid="stFormSubmitButton"] button {{ width: 100% !important; background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important; color: black !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; padding: 15px !important; }}
     .stMarkdown, p, h1, h2, h3, label {{ color: white !important; }}
@@ -66,6 +66,17 @@ def load_questions():
         df.columns = [str(c).strip() for c in df.columns]
         return df
     except: return None
+
+# --- TAYMER FRAGMENTI (BU XATOLIKNI YO'QOTADI) ---
+@st.fragment
+def test_timer_fragment():
+    st_autorefresh(interval=1000, key="timer_refresh")
+    rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
+    st.markdown(f"<div class='timer-card'>⏱ Qolgan vaqt: {rem//60:02d}:{rem%60:02d}</div>", unsafe_allow_html=True)
+    if rem <= 0:
+        st.session_state.test_run = False
+        st.error("Vaqt tugadi!")
+        st.rerun()
 
 # --- O'YIN FUNKSIYALARI ---
 def team_tug_of_war(q_df, subject, u_name):
@@ -114,32 +125,17 @@ apply_styles(st.session_state.get('selected_subject', 'Default'))
 st.sidebar.title("💎 Testmasters")
 menu = st.sidebar.selectbox("Bo'lim:", ["Bosh sahifa", "Yakka Test 📝", "Jamoaviy Arqon ⚔️", "Omad G'ildiragi 🎡"])
 
-# --- TEST REJIMI (BARQORAR TAYMER) ---
+# --- TEST REJIMI ---
 if st.session_state.get('test_run'):
-    # Autorefresh-ni faqat test vaqtida ishlatamiz
-    st_autorefresh(interval=1000, key="global_timer_refresher")
-    
-    # Taymerni sidebar'dan asosiy oynaga ko'chiramiz (Xatolikni oldini olish uchun)
-    rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
-    
-    st.markdown(f"""
-        <div class='timer-card'>
-            ⏱ Qolgan vaqt: {rem//60:02d}:{rem%60:02d}
-        </div>
-    """, unsafe_allow_html=True)
-    
-    if rem <= 0:
-        st.session_state.test_run = False
-        st.error("Vaqt tugadi!")
-        st.rerun()
+    # Faqat taymer yangilanadi, savollar o'zgarmaydi!
+    test_timer_fragment()
 
-    # Formaga barqaror 'key' beramiz
     with st.form(key="quiz_main_form"):
         st.markdown(f"## {st.session_state.selected_subject} testi")
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"<div class='info-box'><b>{i+1}. {item['q']}</b></div>", unsafe_allow_html=True)
-            user_answers[i] = st.radio(f"Savol {i+1}", item['o'], index=None, key=f"q_radio_{i}", label_visibility="collapsed")
+            user_answers[i] = st.radio(f"Savol {i+1}", item['o'], index=None, key=f"fixed_q_{i}", label_visibility="collapsed")
         
         if st.form_submit_button("🏁 TESTNI YAKUNLASH"):
             if any(v is None for v in user_answers.values()):
@@ -173,13 +169,14 @@ elif menu == "Bosh sahifa":
 
 elif menu == "Yakka Test 📝":
     u_name = st.text_input("Ism-familiya:")
-    sub = st.selectbox("Fan:", q_df['Fan'].unique())
+    sub = st.selectbox("Fan:", q_df['Fan'].unique() if q_df is not None else ["Ma'lumot topilmadi"])
     if st.button("🚀 BOSHLASH"):
-        if u_name and not check_already_finished(u_name, sub):
+        if u_name and sub != "Ma'lumot topilmadi" and not check_already_finished(u_name, sub):
             sub_qs = q_df[q_df['Fan'] == sub].sample(n=min(len(q_df[q_df['Fan']==sub]), 20))
             items = [{"q": r['Savol'], "o": random.sample([str(r['A']), str(r['B']), str(r['C']), str(r['D'])], 4), "c": str(r['Javob'])} for _, r in sub_qs.iterrows()]
             st.session_state.update({"test_items": items, "total_time": len(items)*30, "start_time": time.time(), "full_name": u_name, "selected_subject": sub, "test_run": True})
             st.rerun()
+        elif not u_name: st.warning("Ismingizni kiriting!")
         elif check_already_finished(u_name, sub): st.error("Siz bu fandan o'tgansiz!")
 
 elif menu == "Omad G'ildiragi 🎡":
@@ -207,5 +204,5 @@ elif menu == "Omad G'ildiragi 🎡":
 
 elif menu == "Jamoaviy Arqon ⚔️":
     u_name = st.text_input("Sardor ismi:")
-    sub = st.selectbox("Fan:", q_df['Fan'].unique(), key="tug_s")
-    if u_name: team_tug_of_war(q_df, sub, u_name)
+    sub = st.selectbox("Fan:", q_df['Fan'].unique() if q_df is not None else ["Ma'lumot topilmadi"], key="tug_s")
+    if u_name and sub != "Ma'lumot topilmadi": team_tug_of_war(q_df, sub, u_name)
