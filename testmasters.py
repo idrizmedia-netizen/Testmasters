@@ -16,7 +16,7 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2y
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- DIZAYN VA STIL (FAQAT SHU QISM YANGILANDI) ---
+# --- DIZAYN VA STIL ---
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
@@ -28,14 +28,11 @@ def apply_styles(subject="Default"):
     
     st.markdown(f"""
     <style>
-    /* Umumiy fon */
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important;
         background-size: cover !important;
         font-family: 'Inter', sans-serif;
     }}
-    
-    /* Kirish va Natija bloklari */
     .main-card {{
         background: rgba(255, 255, 255, 0.05);
         backdrop-filter: blur(10px);
@@ -45,8 +42,6 @@ def apply_styles(subject="Default"):
         margin-bottom: 20px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }}
-
-    /* Tugmalar */
     div.stButton > button {{
         width: 100%;
         background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important;
@@ -57,50 +52,29 @@ def apply_styles(subject="Default"):
         border: none !important;
         padding: 18px !important;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        transition: 0.4s;
     }}
-    div.stButton > button:hover {{
-        transform: scale(1.02);
-        box-shadow: 0 8px 25px rgba(0, 201, 255, 0.5);
-    }}
-
-    /* Savollar qutisi */
     .stRadio div[role="radiogroup"] {{
         background: rgba(255, 255, 255, 0.08);
         padding: 15px;
         border-radius: 12px;
-        border: 1px solid rgba(255,255,255,0.1);
     }}
-
-    /* Taymer */
     .timer-card {{
         background: rgba(0, 0, 0, 0.8);
         padding: 20px;
         border-radius: 15px;
         text-align: center;
         border-bottom: 4px solid #00C9FF;
-        margin-bottom: 20px;
     }}
-
-    /* Matn ranglari */
-    h1, h2, h3, p, label, .stMarkdown {{
-        color: white !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }}
-    
-    /* Inputlarni chiroyli qilish */
+    h1, h2, h3, p, label, .stMarkdown {{ color: white !important; }}
     .stTextInput>div>div>input, .stSelectbox>div>div>div {{
         background-color: rgba(255,255,255,0.1) !important;
         color: white !important;
-        border-radius: 10px !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- QOLGAN QISMI O'ZGARISSIZ QOLDI ---
-
+# --- FUNKSIYALAR ---
 @st.cache_data(ttl=600)
 def load_questions():
     try:
@@ -117,6 +91,13 @@ def check_already_finished(name, subject):
         return not exists.empty
     except: return False
 
+def send_to_telegram(name, subject, corrects, total, ball):
+    text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+    except: pass
+
+# --- SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 
 main_container = st.empty()
@@ -152,30 +133,36 @@ elif st.session_state.page == "TEST":
                 <p style="margin:0; font-weight:bold; letter-spacing:2px;">VAQT QOLDI</p>
             </div>
         ''', unsafe_allow_html=True)
-        st.sidebar.markdown(f"**Foydalanuvchi:**<br> {st.session_state.full_name}", unsafe_allow_html=True)
-        st.sidebar.markdown(f"**Fan:** {st.session_state.selected_subject}")
+        st.sidebar.markdown(f"**👤 Foydalanuvchi:** {st.session_state.full_name}")
+        st.sidebar.markdown(f"**📚 Fan:** {st.session_state.selected_subject}")
 
         if rem <= 0:
             st.error("⌛ Vaqt tugadi!")
-            st.session_state.page = "RESULT"
+            st.session_state.page = "RESULT" # Avtomatik natijaga o'tish mantiqi qo'shilishi mumkin
             st.rerun()
 
         with st.form("quiz_form", clear_on_submit=True):
+            user_answers = {} # Xatolikni bartaraf qilish uchun lug'atni bu yerda yaratamiz
+            
             for i, item in enumerate(st.session_state.test_items):
                 st.markdown(f"""<div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:10px;">
                     <h4 style="margin:0;">{i+1}. {item['q']}</h4>
                 </div>""", unsafe_allow_html=True)
-                st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+                user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
                 st.write("")
             
             submit = st.form_submit_button("🏁 TESTNI TUGATISH")
             
             if submit:
-                if None in user_answers: # user_answers lug'atini to'ldirish kodingiz mantiqida bor edi
+                if None in user_answers.values():
                     st.error("⚠️ Iltimos, barcha savollarni belgilang!")
                 else:
-                    corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(st.session_state.get(f"q_{i}")) == str(item['c']))
+                    corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
                     ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
+                    
+                    # Telegramga yuborish
+                    send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                    
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
                     st.session_state.page = "RESULT"
                     st.rerun()
@@ -218,12 +205,12 @@ elif st.session_state.page == "HOME":
                     for _, row in selected_qs.iterrows():
                         opts = [str(row['A']), str(row['B']), str(row['C']), str(row['D'])]
                         random.shuffle(opts)
-                        test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "t": 30})
+                        test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob'])})
                     
                     st.session_state.full_name = u_name
                     st.session_state.selected_subject = selected_subject
                     st.session_state.test_items = test_items
-                    st.session_state.total_time = len(test_items) * 30
+                    st.session_state.total_time = len(test_items) * 30 # Har bir savol uchun 30 soniya
                     st.session_state.start_time = time.time()
                     st.session_state.page = "TEST"
                     st.rerun()
