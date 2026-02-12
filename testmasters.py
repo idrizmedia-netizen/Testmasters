@@ -5,7 +5,7 @@ import time
 import requests
 import random
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh # Yangi qo'shildi
+from streamlit_autorefresh import st_autorefresh
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -120,18 +120,21 @@ apply_styles(st.session_state.get('selected_subject', 'Default'))
 st.sidebar.title("💎 Testmasters")
 menu = st.sidebar.selectbox("Bo'lim:", ["Bosh sahifa", "Yakka Test 📝", "Jamoaviy Arqon ⚔️", "Omad G'ildiragi 🎡"])
 
-# --- TEST REJIMI (TAYMER TUZATILGAN QISMI) ---
+# --- TEST REJIMI (XATOLIK TUZATILGAN) ---
 if st.session_state.get('test_run'):
-    # Sahifani har 1 soniyada yangilash
-    st_autorefresh(interval=1000, key="timer_refresh_v1")
-    
-    # Xatolikni oldini olish uchun sidebar'da bo'sh joy ajratamiz
+    # Taymerni barqaror qilish uchun sidebar'da joy band qilamiz
+    st_autorefresh(interval=1000, key="timer_refresh_v3")
     timer_placeholder = st.sidebar.empty()
     
     rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
     
-    # Taymerni placeholder ichiga yozamiz
-    timer_placeholder.markdown(f"<div class='timer-card'>⏱ {rem//60:02d}:{rem%60:02d}</div>", unsafe_allow_html=True)
+    # Faqat placeholder'ni yangilaymiz (bu removeChild xatosini yo'qotadi)
+    timer_placeholder.markdown(f"""
+        <div class='timer-card'>
+            <small style='font-size: 12px; display: block; opacity: 0.8;'>Qolgan vaqt:</small>
+            ⏱ {rem//60:02d}:{rem%60:02d}
+        </div>
+    """, unsafe_allow_html=True)
     
     if rem <= 0:
         st.session_state.test_run = False
@@ -170,7 +173,6 @@ elif st.session_state.get('final_score'):
         st.session_state.final_score = None
         st.rerun()
 
-# --- MENYU BO'LIMLARI ---
 elif menu == "Bosh sahifa":
     st.title("🎓 Testmasters Online")
     st.image("https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000")
