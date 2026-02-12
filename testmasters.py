@@ -30,9 +30,9 @@ def apply_styles(subject="Default"):
     <style>
     .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; }}
     .info-box {{ background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 20px; backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px; }}
-    .timer-card {{ background: linear-gradient(135deg, #FF4B4B, #FF9068); padding: 20px; border-radius: 15px; text-align: center; color: white !important; font-size: 24px; font-weight: bold; box-shadow: 0 10px 20px rgba(255,75,75,0.3); }}
+    .timer-card {{ background: linear-gradient(90deg, #FF4B4B, #FF9068); padding: 15px; border-radius: 15px; text-align: center; color: white !important; font-size: 22px; font-weight: bold; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(255,75,75,0.3); }}
     .spin-text {{ font-size: 40px; font-weight: bold; text-align: center; color: #00C9FF; }}
-    div[data-testid="stFormSubmitButton"] button, .stButton > button {{ width: 100% !important; background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important; color: black !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; padding: 15px !important; }}
+    div[data-testid="stFormSubmitButton"] button {{ width: 100% !important; background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%) !important; color: black !important; font-weight: bold !important; border-radius: 12px !important; border: none !important; padding: 15px !important; }}
     .stMarkdown, p, h1, h2, h3, label {{ color: white !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -73,24 +73,19 @@ def team_tug_of_war(q_df, subject, u_name):
     if check_already_finished(u_name, f"{subject} (Arqon)"):
         st.error("Siz bu fan bo'yicha o'yinda qatnashib bo'lgansiz!")
         return
-
     if 'tug_score' not in st.session_state:
         st.session_state.tug_score = 50
         st.session_state.current_q = q_df[q_df['Fan'] == subject].sample(1).iloc[0]
-
     st.progress(st.session_state.tug_score / 100)
     c1, _, c3 = st.columns([1,1,1])
     c1.markdown("**🤖 Robotlar**")
     c3.markdown(f"**👨‍🎓 {u_name}**")
-
     q = st.session_state.current_q
     st.write(f"### Savol: {q['Savol']}")
     opts = [str(q['A']), str(q['B']), str(q['C']), str(q['D'])]
     ans = st.radio("Javobingiz:", opts, index=None)
-    
     if st.button("TORTISH! 💪"):
-        if ans is None:
-            st.warning("Javobni tanlang!")
+        if ans is None: st.warning("Javobni tanlang!")
         else:
             if ans.lower().strip() == str(q['Javob']).lower().strip():
                 st.session_state.tug_score = min(100, st.session_state.tug_score + 25)
@@ -98,7 +93,6 @@ def team_tug_of_war(q_df, subject, u_name):
             else:
                 st.session_state.tug_score = max(0, st.session_state.tug_score - 25)
                 st.error("Xato!")
-            
             if st.session_state.tug_score >= 100:
                 st.image(WIN_IMAGE)
                 st.balloons()
@@ -120,19 +114,17 @@ apply_styles(st.session_state.get('selected_subject', 'Default'))
 st.sidebar.title("💎 Testmasters")
 menu = st.sidebar.selectbox("Bo'lim:", ["Bosh sahifa", "Yakka Test 📝", "Jamoaviy Arqon ⚔️", "Omad G'ildiragi 🎡"])
 
-# --- TEST REJIMI (XATOLIK TUZATILGAN) ---
+# --- TEST REJIMI (BARQORAR TAYMER) ---
 if st.session_state.get('test_run'):
-    # Taymerni barqaror qilish uchun sidebar'da joy band qilamiz
-    st_autorefresh(interval=1000, key="timer_refresh_v3")
-    timer_placeholder = st.sidebar.empty()
+    # Autorefresh-ni faqat test vaqtida ishlatamiz
+    st_autorefresh(interval=1000, key="global_timer_refresher")
     
+    # Taymerni sidebar'dan asosiy oynaga ko'chiramiz (Xatolikni oldini olish uchun)
     rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
     
-    # Faqat placeholder'ni yangilaymiz (bu removeChild xatosini yo'qotadi)
-    timer_placeholder.markdown(f"""
+    st.markdown(f"""
         <div class='timer-card'>
-            <small style='font-size: 12px; display: block; opacity: 0.8;'>Qolgan vaqt:</small>
-            ⏱ {rem//60:02d}:{rem%60:02d}
+            ⏱ Qolgan vaqt: {rem//60:02d}:{rem%60:02d}
         </div>
     """, unsafe_allow_html=True)
     
@@ -141,12 +133,13 @@ if st.session_state.get('test_run'):
         st.error("Vaqt tugadi!")
         st.rerun()
 
-    with st.form("quiz_form"):
+    # Formaga barqaror 'key' beramiz
+    with st.form(key="quiz_main_form"):
         st.markdown(f"## {st.session_state.selected_subject} testi")
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"<div class='info-box'><b>{i+1}. {item['q']}</b></div>", unsafe_allow_html=True)
-            user_answers[i] = st.radio(f"Savol {i+1}", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+            user_answers[i] = st.radio(f"Savol {i+1}", item['o'], index=None, key=f"q_radio_{i}", label_visibility="collapsed")
         
         if st.form_submit_button("🏁 TESTNI YAKUNLASH"):
             if any(v is None for v in user_answers.values()):
