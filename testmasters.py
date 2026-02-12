@@ -5,6 +5,7 @@ import time
 import requests
 import random
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh # Yangi qo'shildi
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -40,7 +41,7 @@ def apply_styles(subject="Default"):
 def send_to_telegram(name, subject, corrects, total, ball):
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n📊: {ball}%"
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try: requests.post(url, json={{"chat_id": CHAT_ID, "text": text}})
+    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
 def save_to_sheets(name, subject, corrects, total, ball):
@@ -119,13 +120,22 @@ apply_styles(st.session_state.get('selected_subject', 'Default'))
 st.sidebar.title("💎 Testmasters")
 menu = st.sidebar.selectbox("Bo'lim:", ["Bosh sahifa", "Yakka Test 📝", "Jamoaviy Arqon ⚔️", "Omad G'ildiragi 🎡"])
 
-# --- TEST REJIMI ---
+# --- TEST REJIMI (TAYMER TUZATILGAN QISMI) ---
 if st.session_state.get('test_run'):
+    # Sahifani har 1 soniyada yangilash
+    st_autorefresh(interval=1000, key="timer_refresh_v1")
+    
+    # Xatolikni oldini olish uchun sidebar'da bo'sh joy ajratamiz
+    timer_placeholder = st.sidebar.empty()
+    
     rem = max(0, int(st.session_state.total_time - (time.time() - st.session_state.start_time)))
-    st.sidebar.markdown(f"<div class='timer-card'>{rem//60:02d}:{rem%60:02d}</div>", unsafe_allow_html=True)
+    
+    # Taymerni placeholder ichiga yozamiz
+    timer_placeholder.markdown(f"<div class='timer-card'>⏱ {rem//60:02d}:{rem%60:02d}</div>", unsafe_allow_html=True)
     
     if rem <= 0:
         st.session_state.test_run = False
+        st.error("Vaqt tugadi!")
         st.rerun()
 
     with st.form("quiz_form"):
