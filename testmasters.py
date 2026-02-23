@@ -5,6 +5,7 @@ import time
 import requests
 import random
 from datetime import datetime
+import threading  # Asinxron yuborish uchun
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -20,6 +21,29 @@ except KeyError:
     st.stop()
 
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- ASINXRON FUNKSIYA (FONDA ISHLAYDI) ---
+def background_tasks(name, subject, corrects, total, ball):
+    # 1. Sheetsga saqlash
+    try:
+        new_row = pd.DataFrame([{
+            "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "Ism-familiya": name,
+            "Fan": subject,
+            "To'g'ri": corrects,
+            "Xato": total - corrects,
+            "Ball (%)": f"{ball}%"
+        }])
+        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
+        updated_df = pd.concat([existing_df, new_row], ignore_index=True)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
+    except: pass
+
+    # 2. Telegramga yuborish
+    text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+    except: pass
 
 # --- AUDIO FUNKSIYALAR ---
 def play_audio(sound_type="success"):
@@ -100,28 +124,6 @@ def check_already_finished(name, subject):
         return not exists.empty
     except: return False
 
-def save_result_to_sheets(name, subject, corrects, total, ball):
-    try:
-        new_row = pd.DataFrame([{
-            "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Ism-familiya": name,
-            "Fan": subject,
-            "To'g'ri": corrects,
-            "Xato": total - corrects,
-            "Ball (%)": f"{ball}%"
-        }])
-        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
-        updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
-    except Exception as e:
-        st.error(f"Saqlashda xatolik: {e}")
-
-def send_to_telegram(name, subject, corrects, total, ball):
-    text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
-    except: pass
-
 def show_admin_panel():
     st.markdown("<h2 style='text-align:center;'>📊 Boshqaruv va Statistika</h2>", unsafe_allow_html=True)
     try:
@@ -170,7 +172,6 @@ elif st.session_state.page == "RESULT":
         apply_styles()
         res = st.session_state.final_score
         
-        # Audio va effektlar
         if res['ball'] >= 60:
             st.balloons()
             play_audio("success")
@@ -185,7 +186,6 @@ elif st.session_state.page == "RESULT":
             </div>
         """, unsafe_allow_html=True)
 
-        # Xatolar tahlili
         with st.expander("🔍 Xatolar ustida ishlash (Batafsil tahlil)"):
             for log in st.session_state.user_logs:
                 border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
@@ -201,14 +201,12 @@ elif st.session_state.page == "RESULT":
             st.session_state.page = "HOME"
             st.rerun()
 
-# 3. TEST TOPSHIRISH EKRANI + PROGRESS BAR
+# 3. TEST TOPSHIRISH EKRANI
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     with main_container.container():
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
-        
-        # Progress Bar hisoblash
         total_qs = len(st.session_state.test_items)
         
         st.sidebar.markdown(f'''<div class="timer-card"><h1 style="color:#00C9FF; margin:0; font-size:45px;">{rem//60:02d}:{rem%60:02d}</h1><p style="margin:0; font-weight:bold;">VAQT QOLDI</p></div>''', unsafe_allow_html=True)
@@ -222,6 +220,11 @@ elif st.session_state.page == "TEST":
             user_answers = {}
             for i, item in enumerate(st.session_state.test_items):
                 st.markdown(f"**{i+1}. {item['q']}**")
+                
+                # --- RASM QO'SHISH ---
+                if item.get('image') and str(item['image']) != 'nan':
+                    st.image(item['image'], use_container_width=True)
+                
                 user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
                 st.markdown("---")
             
@@ -236,29 +239,26 @@ elif st.session_state.page == "TEST":
                     for i, item in enumerate(st.session_state.test_items):
                         u_ans = str(user_answers[i]).strip().lower()
                         db_ans_key = str(item['c']).strip().upper()
-                        # To'g'ri javob matni yoki harfi
                         correct_text = item['map'].get(db_ans_key, str(item['c']))
-                        
                         is_right = (u_ans == str(correct_text).lower()) or (u_ans == str(item['c']).lower())
-                        
                         if is_right: corrects += 1
-                        
-                        logs.append({
-                            "question": item['q'],
-                            "user_ans": user_answers[i],
-                            "correct_ans": correct_text,
-                            "correct": is_right
-                        })
+                        logs.append({"question": item['q'], "user_ans": user_answers[i], "correct_ans": correct_text, "correct": is_right})
 
                     ball = round((corrects / total_qs) * 100, 1)
-                    st.session_state.user_logs = logs # Tahlil uchun saqlash
-                    save_result_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, total_qs, ball)
-                    send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, total_qs, ball)
+                    st.session_state.user_logs = logs
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
+
+                    # --- ASINXRON YUBORISH (THREADING) ---
+                    thread = threading.Thread(target=background_tasks, args=(
+                        st.session_state.full_name, 
+                        st.session_state.selected_subject, 
+                        corrects, total_qs, ball
+                    ))
+                    thread.start()
+
                     st.session_state.page = "RESULT"
                     st.rerun()
         
-        # Jonli progress
         answered_count = sum(1 for v in user_answers.values() if v is not None)
         st.sidebar.write(f"To'ldirildi: {answered_count}/{total_qs}")
         st.sidebar.progress(answered_count / total_qs)
@@ -271,10 +271,7 @@ elif st.session_state.page == "HOME":
     apply_styles()
     with main_container.container():
         st.markdown("<h1 style='text-align:center; font-size:50px;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
-        st.markdown('''<div class="main-card">
-            <h3 style="margin-top:0; color:#00C9FF;">📝 Yo'riqnoma:</h3>
-            <p style="font-size:17px;">1️⃣ Ism-familiyangizni kiriting.<br>2️⃣ Fanni tanlab testni boshlang.</p>
-        </div>''', unsafe_allow_html=True)
+        st.markdown('''<div class="main-card"><h3 style="margin-top:0; color:#00C9FF;">📝 Yo'riqnoma:</h3><p style="font-size:17px;">1️⃣ Ism-familiyangizni kiriting.<br>2️⃣ Fanni tanlab testni boshlang.</p></div>''', unsafe_allow_html=True)
         u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev")
         q_df = load_questions()
         if q_df is not None:
@@ -294,6 +291,10 @@ elif st.session_state.page == "HOME":
                             mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
                             opts = [v for v in mapping.values() if v != 'nan' and v != '']
                             random.shuffle(opts)
-                            test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping})
+                            # Rasm ustunini olish
+                            test_items.append({
+                                "q": row['Savol'], "o": opts, "c": str(row['Javob']), 
+                                "map": mapping, "image": row.get('Rasm') 
+                            })
                         st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST", "user_logs": []})
                         st.rerun()
