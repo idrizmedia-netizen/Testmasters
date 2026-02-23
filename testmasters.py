@@ -16,7 +16,7 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2y
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- DIZAYN VA STIL (O'ZGARISHSIZ) ---
+# --- DIZAYN VA STIL ---
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
@@ -79,13 +79,11 @@ def apply_styles(subject="Default"):
 def load_questions():
     try:
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-        # Ustun nomlarini tozalash (Bo'sh joylarni olib tashlash va matnga aylantirish)
         df.columns = [str(c).strip() for c in df.columns]
-        # Bo'sh qatorlarni tashlab yuborish
         df = df.dropna(subset=['Fan', 'Savol'], how='all')
         return df
     except Exception as e:
-        st.error(f"Savollarni yuklashda xatolik: {e}")
+        st.error(f"Xatolik: {e}")
         return None
 
 def check_already_finished(name, subject):
@@ -93,7 +91,6 @@ def check_already_finished(name, subject):
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
         df.columns = [str(c).strip() for c in df.columns]
         if df.empty: return False
-        # Ism va Fanni solishtirishda ham tozalash ishlatamiz
         exists = df[(df['Ism-familiya'].astype(str).str.strip().str.lower() == name.strip().lower()) & 
                     (df['Fan'].astype(str).str.strip().str.lower() == subject.strip().lower())]
         return not exists.empty
@@ -113,7 +110,7 @@ def save_result_to_sheets(name, subject, corrects, total, ball):
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
     except Exception as e:
-        st.error(f"Ma'lumotlarni saqlashda xatolik: {e}")
+        st.error(f"Saqlashda xatolik: {e}")
 
 def send_to_telegram(name, subject, corrects, total, ball):
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -162,8 +159,7 @@ elif st.session_state.page == "TEST":
 
         if rem <= 0:
             st.error("⌛ Vaqt tugadi!")
-            # Avtomatik topshirish funksiyasi bu yerda bo'lishi mumkin
-            st.session_state.page = "HOME" # Vaqt tugaganda uyga qaytarish yoki natijaga yuborish
+            st.session_state.page = "HOME"
             st.rerun()
 
         with st.form("quiz_form", clear_on_submit=True):
@@ -180,12 +176,22 @@ elif st.session_state.page == "TEST":
                 if None in user_answers.values():
                     st.error("⚠️ Iltimos, barcha savollarni belgilang!")
                 else:
-                    corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]) == str(item['c']))
+                    corrects = 0
+                    for i, item in enumerate(st.session_state.test_items):
+                        u_ans = str(user_answers[i]).strip().lower()
+                        db_ans = str(item['c']).strip().lower() # Jadvaldagi Javob ustuni
+                        
+                        # TEKSHIRISH MANTIG'I:
+                        # 1. Matnli moslik (Masalan: "4" == "4")
+                        # 2. Harfli moslik (Masalan: "A" deb yozilgan bo'lsa, A variantdagi matnni olib tekshiradi)
+                        if u_ans == db_ans:
+                            corrects += 1
+                        elif db_ans.upper() in item['map'] and u_ans == str(item['map'][db_ans.upper()]).lower():
+                            corrects += 1
+
                     ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-                    
                     save_result_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                     send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
-                    
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
                     st.session_state.page = "RESULT"
                     st.rerun()
@@ -198,50 +204,55 @@ elif st.session_state.page == "HOME":
     apply_styles()
     with main_container.container():
         st.markdown("<h1 style='text-align:center; font-size:50px;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
-        
         st.markdown('''<div class="main-card">
             <h3 style="margin-top:0; color:#00C9FF;">📝 Yo'riqnoma:</h3>
             <p style="font-size:17px; line-height:1.6;">
                 1️⃣ Ism-familiyangizni kiriting va fanni tanlang.<br>
                 2️⃣ <b>"Testni boshlash"</b> tugmasini bosing.<br>
-                3️⃣ Har bir savol uchun belgilangan vaqtga e'tibor bering.
+                3️⃣ Tizim harfli (A, B) yoki matnli javoblarni avtomat aniqlaydi.
             </p>
         </div>''', unsafe_allow_html=True)
         
         u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev")
-        
         q_df = load_questions()
-        if q_df is not None:
-            # Ustun mavjudligini tekshirish va xatoni oldini olish
-            if 'Fan' in q_df.columns:
-                all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
-                selected_subject = st.selectbox("Fanni tanlang:", all_subs)
+        
+        if q_df is not None and 'Fan' in q_df.columns:
+            all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
+            selected_subject = st.selectbox("Fanni tanlang:", all_subs)
 
-                if st.button("🚀 TESTNI BOSHLASH"):
-                    if not u_name:
-                        st.error("⚠️ Iltimos, ism-familiyangizni yozing!")
-                    elif check_already_finished(u_name, selected_subject):
-                        st.error(f"❌ Kechirasiz, {u_name}. Siz {selected_subject} fanidan test topshirib bo'lgansiz!")
-                    else:
-                        sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
-                        if sub_qs.empty:
-                            st.error("Bu fan bo'yicha savollar topilmadi.")
-                        else:
-                            selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-                            
-                            test_items = []
-                            for _, row in selected_qs.iterrows():
-                                # Variantlarni tekshirish
-                                opts = [str(row.get('A','')), str(row.get('B','')), str(row.get('C','')), str(row.get('D',''))]
-                                random.shuffle(opts)
-                                test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob'])})
-                            
-                            st.session_state.full_name = u_name
-                            st.session_state.selected_subject = selected_subject
-                            st.session_state.test_items = test_items
-                            st.session_state.total_time = len(test_items) * 30 
-                            st.session_state.start_time = time.time()
-                            st.session_state.page = "TEST"
-                            st.rerun()
-            else:
-                st.error("Google Sheets jadvalida 'Fan' ustuni topilmadi. Sarlavhalarni tekshiring!")
+            if st.button("🚀 TESTNI BOSHLASH"):
+                if not u_name:
+                    st.error("⚠️ Ism-familiyangizni yozing!")
+                elif check_already_finished(u_name, selected_subject):
+                    st.error(f"❌ {u_name}, siz bu fandan test topshirib bo'lgansiz!")
+                else:
+                    sub_qs = q_df[q_df['Fan'] == selected_subject].copy()
+                    if not sub_qs.empty:
+                        selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
+                        test_items = []
+                        for _, row in selected_qs.iterrows():
+                            # Variantlarni xaritaga yuklash (A, B, C, D)
+                            mapping = {
+                                'A': str(row.get('A','')),
+                                'B': str(row.get('B','')),
+                                'C': str(row.get('C','')),
+                                'D': str(row.get('D',''))
+                            }
+                            opts = [v for v in mapping.values() if v != 'nan' and v != '']
+                            random.shuffle(opts)
+                            test_items.append({
+                                "q": row['Savol'], 
+                                "o": opts, 
+                                "c": str(row['Javob']),
+                                "map": mapping
+                            })
+                        
+                        st.session_state.update({
+                            "full_name": u_name,
+                            "selected_subject": selected_subject,
+                            "test_items": test_items,
+                            "total_time": len(test_items) * 30,
+                            "start_time": time.time(),
+                            "page": "TEST"
+                        })
+                        st.rerun()
