@@ -118,13 +118,72 @@ def send_to_telegram(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
+# --- ADMIN PANEL FUNKSIYASI ---
+def show_admin_panel():
+    st.markdown("<h2 style='text-align:center;'>📊 Boshqaruv va Statistika</h2>", unsafe_allow_html=True)
+    
+    try:
+        res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
+        res_df.columns = [str(c).strip() for c in res_df.columns]
+        
+        if res_df.empty:
+            st.info("Hozircha hech qanday natija yo'q.")
+        else:
+            # Metrikalar
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Jami urinishlar", len(res_df))
+            
+            # Ball ustunini songa aylantirish (foiz belgisiz)
+            res_df['BallNum'] = res_df['Ball (%)'].str.replace('%', '').astype(float)
+            m2.metric("O'rtacha natija", f"{res_df['BallNum'].mean():.1f}%")
+            m3.metric("Eng yuqori ball", f"{res_df['BallNum'].max()}%")
+
+            # Grafik
+            st.markdown("### 📈 Fanlar bo'yicha faollik")
+            st.bar_chart(res_df['Fan'].value_counts())
+
+            # Jadval va qidiruv
+            st.markdown("### 🔍 Barcha natijalar")
+            search = st.text_input("Ism bo'yicha qidirish:", placeholder="Ali...")
+            if search:
+                final_df = res_df[res_df['Ism-familiya'].str.contains(search, case=False, na=False)]
+            else:
+                final_df = res_df
+                
+            st.dataframe(final_df.drop(columns=['BallNum']), use_container_width=True)
+            
+            # Export
+            csv = final_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 CSV formatda yuklab olish", csv, "natijalar.csv", "text/csv")
+            
+    except Exception as e:
+        st.error(f"Admin panel yuklashda xatolik: {e}")
+
 # --- SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 
 main_container = st.empty()
 
-# 1. NATIJA EKRANI
-if st.session_state.page == "RESULT":
+# --- SIDEBAR ADMIN LOGIN ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("🔐 Admin Panel"):
+    password = st.text_input("Parol:", type="password")
+    if password == "tm2026":
+        if st.button("Kirish"):
+            st.session_state.page = "ADMIN"
+            st.rerun()
+
+# 1. ADMIN SAHIFASI
+if st.session_state.page == "ADMIN":
+    apply_styles()
+    with main_container.container():
+        if st.button("⬅️ ASOSIY SAHIFAGA QAYTISH"):
+            st.session_state.page = "HOME"
+            st.rerun()
+        show_admin_panel()
+
+# 2. NATIJA EKRANI
+elif st.session_state.page == "RESULT":
     with main_container.container():
         apply_styles()
         res = st.session_state.final_score
@@ -140,7 +199,7 @@ if st.session_state.page == "RESULT":
             st.session_state.page = "HOME"
             st.rerun()
 
-# 2. TEST TOPSHIRISH EKRANI
+# 3. TEST TOPSHIRISH EKRANI
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     
@@ -179,11 +238,8 @@ elif st.session_state.page == "TEST":
                     corrects = 0
                     for i, item in enumerate(st.session_state.test_items):
                         u_ans = str(user_answers[i]).strip().lower()
-                        db_ans = str(item['c']).strip().lower() # Jadvaldagi Javob ustuni
+                        db_ans = str(item['c']).strip().lower()
                         
-                        # TEKSHIRISH MANTIG'I:
-                        # 1. Matnli moslik (Masalan: "4" == "4")
-                        # 2. Harfli moslik (Masalan: "A" deb yozilgan bo'lsa, A variantdagi matnni olib tekshiradi)
                         if u_ans == db_ans:
                             corrects += 1
                         elif db_ans.upper() in item['map'] and u_ans == str(item['map'][db_ans.upper()]).lower():
@@ -199,7 +255,7 @@ elif st.session_state.page == "TEST":
         time.sleep(1)
         st.rerun()
 
-# 3. KIRISH EKRANI
+# 4. KIRISH EKRANI
 elif st.session_state.page == "HOME":
     apply_styles()
     with main_container.container():
@@ -231,7 +287,6 @@ elif st.session_state.page == "HOME":
                         selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
                         test_items = []
                         for _, row in selected_qs.iterrows():
-                            # Variantlarni xaritaga yuklash (A, B, C, D)
                             mapping = {
                                 'A': str(row.get('A','')),
                                 'B': str(row.get('B','')),
