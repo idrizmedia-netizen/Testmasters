@@ -9,8 +9,7 @@ from datetime import datetime
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
 
-# 2. SOZLAMALAR (st.secrets orqali TOML dan o'qish)
-# Bu yerda secrets.toml dagi [general] bo'limidan ma'lumotlar olinadi
+# 2. SOZLAMALAR
 try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
@@ -20,8 +19,15 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan yoki topilmadi!")
     st.stop()
 
-# GSheets ulanishi (secrets.toml dagi [connections.gsheets] ni avtomat o'qiydi)
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# --- AUDIO FUNKSIYALAR ---
+def play_audio(sound_type="success"):
+    urls = {
+        "success": "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3",
+        "fail": "https://www.soundjay.com/buttons/sounds/button-10.mp3"
+    }
+    st.markdown(f'<audio src="{urls[sound_type]}" autoplay></audio>', unsafe_allow_html=True)
 
 # --- DIZAYN VA STIL ---
 def apply_styles(subject="Default"):
@@ -49,6 +55,13 @@ def apply_styles(subject="Default"):
         margin-bottom: 20px;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }}
+    .analysis-card {{
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        border-left: 5px solid;
+    }}
     div.stButton > button {{
         width: 100%;
         background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important;
@@ -61,23 +74,7 @@ def apply_styles(subject="Default"):
         text-transform: uppercase;
         transition: 0.4s;
     }}
-    .stRadio div[role="radiogroup"] {{
-        background: rgba(255, 255, 255, 0.08);
-        padding: 15px;
-        border-radius: 12px;
-    }}
-    .timer-card {{
-        background: rgba(0, 0, 0, 0.8);
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        border-bottom: 4px solid #00C9FF;
-    }}
     h1, h2, h3, p, label, .stMarkdown {{ color: white !important; }}
-    .stTextInput>div>div>input, .stSelectbox>div>div>div {{
-        background-color: rgba(255,255,255,0.1) !important;
-        color: white !important;
-    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -138,19 +135,14 @@ def show_admin_panel():
             res_df['BallNum'] = res_df['Ball (%)'].str.replace('%', '').astype(float)
             m2.metric("O'rtacha natija", f"{res_df['BallNum'].mean():.1f}%")
             m3.metric("Eng yuqori ball", f"{res_df['BallNum'].max()}%")
-            st.markdown("### 📈 Fanlar bo'yicha faollik")
             st.bar_chart(res_df['Fan'].value_counts())
-            st.markdown("### 🔍 Barcha natijalar")
-            search = st.text_input("Ism bo'yicha qidirish:", placeholder="Ali...")
-            final_df = res_df[res_df['Ism-familiya'].str.contains(search, case=False, na=False)] if search else res_df
-            st.dataframe(final_df.drop(columns=['BallNum']), use_container_width=True)
-            csv = final_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 CSV formatda yuklab olish", csv, "natijalar.csv", "text/csv")
+            st.dataframe(res_df.drop(columns=['BallNum']), use_container_width=True)
     except Exception as e:
         st.error(f"Admin panel yuklashda xatolik: {e}")
 
 # --- SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
+if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
 main_container = st.empty()
 
@@ -158,7 +150,7 @@ main_container = st.empty()
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password")
-    if password == ADMIN_PASS: # Secrets dan olingan parol
+    if password == ADMIN_PASS:
         if st.button("Kirish"):
             st.session_state.page = "ADMIN"
             st.rerun()
@@ -172,59 +164,105 @@ if st.session_state.page == "ADMIN":
             st.rerun()
         show_admin_panel()
 
-# 2. NATIJA EKRANI
+# 2. NATIJA EKRANI + TAHLIL
 elif st.session_state.page == "RESULT":
     with main_container.container():
         apply_styles()
         res = st.session_state.final_score
-        st.balloons()
+        
+        # Audio va effektlar
+        if res['ball'] >= 60:
+            st.balloons()
+            play_audio("success")
+        else:
+            play_audio("fail")
+
         st.markdown(f"""
             <div class="main-card" style="text-align:center;">
                 <h1 style="color:#92FE9D; font-size:100px; margin:0;">{res['ball']}%</h1>
                 <h2 style="margin-bottom:5px;">{res['name']}</h2>
-                <p style="font-size:20px; opacity:0.8;">Natijangiz tizimga muvaffaqiyatli saqlandi!</p>
+                <p style="font-size:20px; opacity:0.8;">Natijangiz tizimga saqlandi!</p>
             </div>
         """, unsafe_allow_html=True)
+
+        # Xatolar tahlili
+        with st.expander("🔍 Xatolar ustida ishlash (Batafsil tahlil)"):
+            for log in st.session_state.user_logs:
+                border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
+                st.markdown(f"""
+                    <div class="analysis-card" style="border-left-color: {border_color};">
+                        <p style="margin:0;"><b>Savol:</b> {log['question']}</p>
+                        <p style="margin:0; color:{border_color};"><b>Sizning javobingiz:</b> {log['user_ans']}</p>
+                        <p style="margin:0; color:#92FE9D;"><b>To'g'ri javob:</b> {log['correct_ans']}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+
         if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
             st.session_state.page = "HOME"
             st.rerun()
 
-# 3. TEST TOPSHIRISH EKRANI
+# 3. TEST TOPSHIRISH EKRANI + PROGRESS BAR
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     with main_container.container():
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
-        st.sidebar.markdown(f'''<div class="timer-card"><h1 style="color:#00C9FF; margin:0; font-size:45px;">{rem//60:02d}:{rem%60:02d}</h1><p style="margin:0; font-weight:bold; letter-spacing:2px;">VAQT QOLDI</p></div>''', unsafe_allow_html=True)
-        st.sidebar.markdown(f"**👤 Foydalanuvchi:** {st.session_state.full_name}")
-        st.sidebar.markdown(f"**📚 Fan:** {st.session_state.selected_subject}")
+        
+        # Progress Bar hisoblash
+        total_qs = len(st.session_state.test_items)
+        
+        st.sidebar.markdown(f'''<div class="timer-card"><h1 style="color:#00C9FF; margin:0; font-size:45px;">{rem//60:02d}:{rem%60:02d}</h1><p style="margin:0; font-weight:bold;">VAQT QOLDI</p></div>''', unsafe_allow_html=True)
+        
         if rem <= 0:
             st.error("⌛ Vaqt tugadi!")
             st.session_state.page = "HOME"
             st.rerun()
+
         with st.form("quiz_form", clear_on_submit=True):
             user_answers = {}
             for i, item in enumerate(st.session_state.test_items):
-                st.markdown(f"""<div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:10px;">
-                    <h4 style="margin:0;">{i+1}. {item['q']}</h4></div>""", unsafe_allow_html=True)
+                st.markdown(f"**{i+1}. {item['q']}**")
                 user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+                st.markdown("---")
+            
             submit = st.form_submit_button("🏁 TESTNI TUGATISH")
+            
             if submit:
                 if None in user_answers.values():
                     st.error("⚠️ Iltimos, barcha savollarni belgilang!")
                 else:
                     corrects = 0
+                    logs = []
                     for i, item in enumerate(st.session_state.test_items):
                         u_ans = str(user_answers[i]).strip().lower()
-                        db_ans = str(item['c']).strip().lower()
-                        if u_ans == db_ans or (db_ans.upper() in item['map'] and u_ans == str(item['map'][db_ans.upper()]).lower()):
-                            corrects += 1
-                    ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-                    save_result_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
-                    send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                        db_ans_key = str(item['c']).strip().upper()
+                        # To'g'ri javob matni yoki harfi
+                        correct_text = item['map'].get(db_ans_key, str(item['c']))
+                        
+                        is_right = (u_ans == str(correct_text).lower()) or (u_ans == str(item['c']).lower())
+                        
+                        if is_right: corrects += 1
+                        
+                        logs.append({
+                            "question": item['q'],
+                            "user_ans": user_answers[i],
+                            "correct_ans": correct_text,
+                            "correct": is_right
+                        })
+
+                    ball = round((corrects / total_qs) * 100, 1)
+                    st.session_state.user_logs = logs # Tahlil uchun saqlash
+                    save_result_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, total_qs, ball)
+                    send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, total_qs, ball)
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
                     st.session_state.page = "RESULT"
                     st.rerun()
+        
+        # Jonli progress
+        answered_count = sum(1 for v in user_answers.values() if v is not None)
+        st.sidebar.write(f"To'ldirildi: {answered_count}/{total_qs}")
+        st.sidebar.progress(answered_count / total_qs)
+        
         time.sleep(1)
         st.rerun()
 
@@ -235,14 +273,11 @@ elif st.session_state.page == "HOME":
         st.markdown("<h1 style='text-align:center; font-size:50px;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
         st.markdown('''<div class="main-card">
             <h3 style="margin-top:0; color:#00C9FF;">📝 Yo'riqnoma:</h3>
-            <p style="font-size:17px; line-height:1.6;">
-                1️⃣ Ism-familiyangizni kiriting va fanni tanlang.<br>
-                2️⃣ <b>"Testni boshlash"</b> tugmasini bosing.
-            </p>
+            <p style="font-size:17px;">1️⃣ Ism-familiyangizni kiriting.<br>2️⃣ Fanni tanlab testni boshlang.</p>
         </div>''', unsafe_allow_html=True)
         u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev")
         q_df = load_questions()
-        if q_df is not None and 'Fan' in q_df.columns:
+        if q_df is not None:
             all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
             selected_subject = st.selectbox("Fanni tanlang:", all_subs)
             if st.button("🚀 TESTNI BOSHLASH"):
@@ -260,5 +295,5 @@ elif st.session_state.page == "HOME":
                             opts = [v for v in mapping.values() if v != 'nan' and v != '']
                             random.shuffle(opts)
                             test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping})
-                        st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 30, "start_time": time.time(), "page": "TEST"})
+                        st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST", "user_logs": []})
                         st.rerun()
