@@ -6,6 +6,7 @@ import requests
 import random
 from datetime import datetime
 import threading  # Asinxron yuborish uchun
+import plotly.express as px  # Interaktiv grafiklar uchun
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -132,12 +133,39 @@ def show_admin_panel():
         if res_df.empty:
             st.info("Hozircha hech qanday natija yo'q.")
         else:
+            # Ma'lumotlarni tayyorlash
+            res_df['BallNum'] = res_df['Ball (%)'].str.replace('%', '').astype(float)
+            
+            # 1. Metrikalar
             m1, m2, m3 = st.columns(3)
             m1.metric("Jami urinishlar", len(res_df))
-            res_df['BallNum'] = res_df['Ball (%)'].str.replace('%', '').astype(float)
             m2.metric("O'rtacha natija", f"{res_df['BallNum'].mean():.1f}%")
             m3.metric("Eng yuqori ball", f"{res_df['BallNum'].max()}%")
-            st.bar_chart(res_df['Fan'].value_counts())
+            
+            st.markdown("---")
+            
+            # 2. Plotly Grafiklari
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### 🥧 Fanlar ulushi")
+                fan_counts = res_df['Fan'].value_counts().reset_index()
+                fan_counts.columns = ['Fan', 'Soni']
+                fig1 = px.pie(fan_counts, values='Soni', names='Fan', hole=0.4,
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig1.update_layout(showlegend=False, paper_bgcolor='rgba(0,0,0,0)', 
+                                 plot_bgcolor='rgba(0,0,0,0)', font=dict(color="white"))
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with col2:
+                st.markdown("### 📈 Ballar taqsimoti")
+                fig2 = px.histogram(res_df, x="BallNum", nbins=10, 
+                                   color_discrete_sequence=['#92FE9D'])
+                fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                                 font=dict(color="white"), xaxis_title="Ball", yaxis_title="Soni")
+                st.plotly_chart(fig2, use_container_width=True)
+
+            st.markdown("### 📋 To'liq natijalar")
             st.dataframe(res_df.drop(columns=['BallNum']), use_container_width=True)
     except Exception as e:
         st.error(f"Admin panel yuklashda xatolik: {e}")
@@ -221,7 +249,6 @@ elif st.session_state.page == "TEST":
             for i, item in enumerate(st.session_state.test_items):
                 st.markdown(f"**{i+1}. {item['q']}**")
                 
-                # --- RASM QO'SHISH ---
                 if item.get('image') and str(item['image']) != 'nan':
                     st.image(item['image'], use_container_width=True)
                 
@@ -248,7 +275,6 @@ elif st.session_state.page == "TEST":
                     st.session_state.user_logs = logs
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
 
-                    # --- ASINXRON YUBORISH (THREADING) ---
                     thread = threading.Thread(target=background_tasks, args=(
                         st.session_state.full_name, 
                         st.session_state.selected_subject, 
@@ -291,7 +317,6 @@ elif st.session_state.page == "HOME":
                             mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
                             opts = [v for v in mapping.values() if v != 'nan' and v != '']
                             random.shuffle(opts)
-                            # Rasm ustunini olish
                             test_items.append({
                                 "q": row['Savol'], "o": opts, "c": str(row['Javob']), 
                                 "map": mapping, "image": row.get('Rasm') 
