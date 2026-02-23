@@ -9,11 +9,18 @@ from datetime import datetime
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
 
-# 2. SOZLAMALAR
-TELEGRAM_TOKEN = "8541792718:AAF4SNckR8rTqB1WwPJrc3HzF-KpTv5mWd0"
-CHAT_ID = "@Testmasters_LC" 
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit?usp=sharing"
+# 2. SOZLAMALAR (st.secrets orqali TOML dan o'qish)
+# Bu yerda secrets.toml dagi [general] bo'limidan ma'lumotlar olinadi
+try:
+    TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
+    CHAT_ID = st.secrets["general"]["chat_id"]
+    SHEET_URL = st.secrets["general"]["sheet_url"]
+    ADMIN_PASS = st.secrets["general"]["admin_password"]
+except KeyError:
+    st.error("Secrets.toml fayli noto'g'ri sozlangan yoki topilmadi!")
+    st.stop()
 
+# GSheets ulanishi (secrets.toml dagi [connections.gsheets] ni avtomat o'qiydi)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- DIZAYN VA STIL ---
@@ -118,44 +125,27 @@ def send_to_telegram(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-# --- ADMIN PANEL FUNKSIYASI ---
 def show_admin_panel():
     st.markdown("<h2 style='text-align:center;'>📊 Boshqaruv va Statistika</h2>", unsafe_allow_html=True)
-    
     try:
         res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
         res_df.columns = [str(c).strip() for c in res_df.columns]
-        
         if res_df.empty:
             st.info("Hozircha hech qanday natija yo'q.")
         else:
-            # Metrikalar
             m1, m2, m3 = st.columns(3)
             m1.metric("Jami urinishlar", len(res_df))
-            
-            # Ball ustunini songa aylantirish (foiz belgisiz)
             res_df['BallNum'] = res_df['Ball (%)'].str.replace('%', '').astype(float)
             m2.metric("O'rtacha natija", f"{res_df['BallNum'].mean():.1f}%")
             m3.metric("Eng yuqori ball", f"{res_df['BallNum'].max()}%")
-
-            # Grafik
             st.markdown("### 📈 Fanlar bo'yicha faollik")
             st.bar_chart(res_df['Fan'].value_counts())
-
-            # Jadval va qidiruv
             st.markdown("### 🔍 Barcha natijalar")
             search = st.text_input("Ism bo'yicha qidirish:", placeholder="Ali...")
-            if search:
-                final_df = res_df[res_df['Ism-familiya'].str.contains(search, case=False, na=False)]
-            else:
-                final_df = res_df
-                
+            final_df = res_df[res_df['Ism-familiya'].str.contains(search, case=False, na=False)] if search else res_df
             st.dataframe(final_df.drop(columns=['BallNum']), use_container_width=True)
-            
-            # Export
             csv = final_df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 CSV formatda yuklab olish", csv, "natijalar.csv", "text/csv")
-            
     except Exception as e:
         st.error(f"Admin panel yuklashda xatolik: {e}")
 
@@ -168,7 +158,7 @@ main_container = st.empty()
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password")
-    if password == "tm2026":
+    if password == ADMIN_PASS: # Secrets dan olingan parol
         if st.button("Kirish"):
             st.session_state.page = "ADMIN"
             st.rerun()
@@ -202,35 +192,23 @@ elif st.session_state.page == "RESULT":
 # 3. TEST TOPSHIRISH EKRANI
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
-    
     with main_container.container():
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
-        
-        st.sidebar.markdown(f'''
-            <div class="timer-card">
-                <h1 style="color:#00C9FF; margin:0; font-size:45px;">{rem//60:02d}:{rem%60:02d}</h1>
-                <p style="margin:0; font-weight:bold; letter-spacing:2px;">VAQT QOLDI</p>
-            </div>
-        ''', unsafe_allow_html=True)
+        st.sidebar.markdown(f'''<div class="timer-card"><h1 style="color:#00C9FF; margin:0; font-size:45px;">{rem//60:02d}:{rem%60:02d}</h1><p style="margin:0; font-weight:bold; letter-spacing:2px;">VAQT QOLDI</p></div>''', unsafe_allow_html=True)
         st.sidebar.markdown(f"**👤 Foydalanuvchi:** {st.session_state.full_name}")
         st.sidebar.markdown(f"**📚 Fan:** {st.session_state.selected_subject}")
-
         if rem <= 0:
             st.error("⌛ Vaqt tugadi!")
             st.session_state.page = "HOME"
             st.rerun()
-
         with st.form("quiz_form", clear_on_submit=True):
             user_answers = {}
             for i, item in enumerate(st.session_state.test_items):
                 st.markdown(f"""<div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:10px;">
-                    <h4 style="margin:0;">{i+1}. {item['q']}</h4>
-                </div>""", unsafe_allow_html=True)
+                    <h4 style="margin:0;">{i+1}. {item['q']}</h4></div>""", unsafe_allow_html=True)
                 user_answers[i] = st.radio("Javob:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
-            
             submit = st.form_submit_button("🏁 TESTNI TUGATISH")
-            
             if submit:
                 if None in user_answers.values():
                     st.error("⚠️ Iltimos, barcha savollarni belgilang!")
@@ -239,19 +217,14 @@ elif st.session_state.page == "TEST":
                     for i, item in enumerate(st.session_state.test_items):
                         u_ans = str(user_answers[i]).strip().lower()
                         db_ans = str(item['c']).strip().lower()
-                        
-                        if u_ans == db_ans:
+                        if u_ans == db_ans or (db_ans.upper() in item['map'] and u_ans == str(item['map'][db_ans.upper()]).lower()):
                             corrects += 1
-                        elif db_ans.upper() in item['map'] and u_ans == str(item['map'][db_ans.upper()]).lower():
-                            corrects += 1
-
                     ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                     save_result_to_sheets(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                     send_to_telegram(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                     st.session_state.final_score = {"name": st.session_state.full_name, "ball": ball}
                     st.session_state.page = "RESULT"
                     st.rerun()
-        
         time.sleep(1)
         st.rerun()
 
@@ -264,18 +237,14 @@ elif st.session_state.page == "HOME":
             <h3 style="margin-top:0; color:#00C9FF;">📝 Yo'riqnoma:</h3>
             <p style="font-size:17px; line-height:1.6;">
                 1️⃣ Ism-familiyangizni kiriting va fanni tanlang.<br>
-                2️⃣ <b>"Testni boshlash"</b> tugmasini bosing.<br>
-                3️⃣ Tizim harfli (A, B) yoki matnli javoblarni avtomat aniqlaydi.
+                2️⃣ <b>"Testni boshlash"</b> tugmasini bosing.
             </p>
         </div>''', unsafe_allow_html=True)
-        
         u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev")
         q_df = load_questions()
-        
         if q_df is not None and 'Fan' in q_df.columns:
             all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
             selected_subject = st.selectbox("Fanni tanlang:", all_subs)
-
             if st.button("🚀 TESTNI BOSHLASH"):
                 if not u_name:
                     st.error("⚠️ Ism-familiyangizni yozing!")
@@ -287,27 +256,9 @@ elif st.session_state.page == "HOME":
                         selected_qs = sub_qs.sample(n=min(len(sub_qs), 30))
                         test_items = []
                         for _, row in selected_qs.iterrows():
-                            mapping = {
-                                'A': str(row.get('A','')),
-                                'B': str(row.get('B','')),
-                                'C': str(row.get('C','')),
-                                'D': str(row.get('D',''))
-                            }
+                            mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
                             opts = [v for v in mapping.values() if v != 'nan' and v != '']
                             random.shuffle(opts)
-                            test_items.append({
-                                "q": row['Savol'], 
-                                "o": opts, 
-                                "c": str(row['Javob']),
-                                "map": mapping
-                            })
-                        
-                        st.session_state.update({
-                            "full_name": u_name,
-                            "selected_subject": selected_subject,
-                            "test_items": test_items,
-                            "total_time": len(test_items) * 30,
-                            "start_time": time.time(),
-                            "page": "TEST"
-                        })
+                            test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping})
+                        st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 30, "start_time": time.time(), "page": "TEST"})
                         st.rerun()
