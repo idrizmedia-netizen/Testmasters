@@ -98,7 +98,7 @@ def apply_styles(subject="Default"):
 
 @st.cache_data(ttl=60)
 def load_questions():
-    df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions", ttl=0)
+   df = conn.read(worksheet="Questions", ttl=0)
     df.columns = [str(c).strip() for c in df.columns]
     return df.dropna(subset=["Fan", "Savol"], how="any")
 
