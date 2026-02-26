@@ -30,7 +30,7 @@ def timer_component():
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
         
-        # Sidebar timer dizayni (O'zgarmadi)
+        # Sidebar timer dizayni
         st.sidebar.markdown(f'''
             <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 1px solid #00C9FF; text-align:center;">
                 <h1 style="color:#00C9FF; margin:0; font-size:40px;">{rem//60:02d}:{rem%60:02d}</h1>
@@ -124,7 +124,6 @@ if st.session_state.page == "ADMIN":
     apply_styles()
     if st.button("⬅️ QAYTISH", key="back_to_home"):
         st.session_state.page = "HOME"; st.rerun()
-    # show_admin_panel() mantiqini bu yerga qo'shishingiz mumkin
 
 # 2. RESULT
 elif st.session_state.page == "RESULT":
@@ -143,27 +142,28 @@ elif st.session_state.page == "RESULT":
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH", key="restart_test"):
         st.session_state.page = "HOME"; st.rerun()
 
-# 3. TEST (Eng muhim qism)
+# 3. TEST (Eng muhim optimizatsiya qilingan qism)
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     timer_component()
     
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
-    # Formaga unikal key berish DOM xatosini oldini oladi
-    with st.form(key=f"quiz_form_{st.session_state.get('start_time', 0)}", clear_on_submit=False):
+    # Formaga unikal key berish DOM xatosini butunlay yo'qotadi
+    test_session_key = f"quiz_form_{st.session_state.get('start_time', 0)}"
+    with st.form(key=test_session_key, clear_on_submit=False):
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
             if item.get('image') and str(item['image']) != 'nan':
                 st.image(item['image'], use_container_width=True)
             
-            # Radio tugmalarga unikal key berish shart
+            # Radio tugmalarga sessiya bilan bog'liq unikal key berish
             user_answers[i] = st.radio(
                 "Tanlang:", 
                 item['o'], 
                 index=None, 
-                key=f"q_{i}_{st.session_state.get('start_time', 0)}", 
+                key=f"q_{i}_{test_session_key}", 
                 label_visibility="collapsed"
             )
             st.markdown("---")
