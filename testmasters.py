@@ -21,36 +21,41 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (XATOLAR TUZATILGAN) ---
+# --- QAT'IY ULANISH QISMI (FINAL TUZATISH - FAQAT SHU YER O'ZGARDI) ---
 try:
-    # Secrets'dan nusxa olamiz
-    creds = dict(st.secrets["connections"]["gsheets"])
+    # 1. Secrets'dan barcha ma'lumotlarni lug'atga olamiz
+    creds_raw = dict(st.secrets["connections"]["gsheets"])
     
-    # 1. PEM formatini RFC 1421 standartiga majburan keltiramiz
-    raw_key = creds.get("private_key", "").strip()
+    # 2. PEM formatini RFC 1421 standartiga keltiramiz (64 belgili qatorlar)
+    raw_key = creds_raw.get("private_key", "").strip()
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
-    
-    # Barcha ko'rinmas belgilarni (space, \n, \r) tozalaymiz
     content = raw_key.replace(header, "").replace(footer, "").replace("\\n", "").replace("\n", "").replace(" ", "").replace("\r", "")
-    
-    # Har 64 belgidan keyin yangi qator qo'shib, PEM formatini noldan yig'amiz
     formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
     final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
     
-    # Tozalangan kalitni lug'atga qaytaramiz
-    creds["private_key"] = final_pem_key
+    # 3. Kutubxona uchun TOZA service_account lug'atini tayyorlaymiz
+    service_account_info = {
+        "type": "service_account",
+        "project_id": creds_raw.get("project_id"),
+        "private_key_id": creds_raw.get("private_key_id"),
+        "private_key": final_pem_key,
+        "client_email": creds_raw.get("client_email"),
+        "client_id": creds_raw.get("client_id"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": creds_raw.get("client_x509_cert_url")
+    }
     
-    # 2. 'multiple values for keyword argument type' xatosini yo'qotish
-    creds.pop("type", None) 
+    # 4. Ulanishni 'service_account' argumenti orqali yaratamiz
+    conn = st.connection("gsheets", type=GSheetsConnection, service_account=service_account_info)
     
-    # 3. Ulanishni yaratamiz
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
 
-# --- TAYMER FRAGMENTI ---
+# --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
@@ -68,7 +73,7 @@ def timer_component():
             st.session_state.page = "HOME"
             st.rerun()
 
-# --- FUNKSIYALAR ---
+# --- FUNKSIYALAR (O'ZGARISHSIZ) ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
@@ -143,7 +148,7 @@ with st.sidebar.expander("🔐 Admin Panel"):
         st.session_state.page = "ADMIN"
         st.rerun()
 
-# --- ASOSIY SAHIFALAR ---
+# --- ASOSIY SAHIFALAR (O'ZGARISHSIZ) ---
 
 # 1. ADMIN
 if st.session_state.page == "ADMIN":
