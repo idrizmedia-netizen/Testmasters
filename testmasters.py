@@ -21,12 +21,34 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH (ENG TOZA VA STANDART USUL) ---
+# --- QAT'IY ULANISH (OXIRGI VA ENG KUCHLI VARIANT) ---
 try:
-    # Kutubxonaga hech qanday lug'at yoki ortiqcha argument bermaymiz.
-    # U secrets.toml ichidagi [connections.gsheets] bo'limini AVTOMATIK topadi.
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # 1. Secrets'dan ma'lumotlarni lug'at qilib olamiz
+    raw_creds = dict(st.secrets["connections"]["gsheets"])
     
+    # 2. PEM kalitini "Jarrohlik" yo'li bilan tozalaymiz
+    key = raw_creds.get("private_key", "")
+    # Sarlavhalarni va barcha qator o'tkazish belgilarini butkul olib tashlaymiz
+    clean_key = (key.replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+                    .replace("\\n", "")
+                    .replace("\n", "")
+                    .replace(" ", "")
+                    .strip())
+    
+    # 3. Kalitni RFC 7468 standartiga binoan har 64 belgidan keyin qatorga bo'lamiz
+    formatted_key = "-----BEGIN PRIVATE KEY-----\n"
+    for i in range(0, len(clean_key), 64):
+        formatted_key += clean_key[i:i+64] + "\n"
+    formatted_key += "-----END PRIVATE KEY-----\n"
+    
+    # 4. Tozalangan kalitni joyiga qo'yamiz va 'type' mojarosini yopamiz
+    raw_creds["private_key"] = formatted_key
+    raw_creds.pop("type", None) # Multiple values xatosini oldini olish
+    
+    # 5. Ulanish
+    conn = st.connection("gsheets", type=GSheetsConnection, **raw_creds)
+
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
