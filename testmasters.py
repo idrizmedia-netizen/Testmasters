@@ -21,38 +21,20 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (XATOLARNI CHEKLAB O'TISH) ---
+# --- QAT'IY ULANISH (ENG TOZA VARIANT) ---
 try:
-    # Secrets'dan hamma narsani olamiz
-    s = st.secrets["connections"]["gsheets"]
+    # Secrets-dan nusxa olamiz
+    creds = dict(st.secrets["connections"]["gsheets"])
     
-    # PEM kalitini tozalash (eng muhim qismi)
-    p_key = s["private_key"].replace("\\n", "\n").strip()
+    # MOJARONI HAL QILISH: Lug'at ichidagi 'type'ni o'chirib tashlaymiz
+    # Chunki 'type'ni pastda GSheetsConnection deb o'zimiz beryapmiz
+    creds.pop("type", None)
     
-    # GSheets kutubxonasi kutayotgan lug'at
-    creds = {
-        "type": "service_account",
-        "project_id": s["project_id"],
-        "private_key_id": s["private_key_id"],
-        "private_key": p_key,
-        "client_email": s["client_email"],
-        "client_id": s["client_id"],
-        "auth_uri": s["auth_uri"],
-        "token_uri": s["token_uri"],
-        "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
-        "client_x509_cert_url": s["client_x509_cert_url"]
-    }
-    
-    # Ulanish: Hech qanday qo'shimcha argumentlarsiz, faqat lug'atni o'zini beramiz
+    # Endi ulanamiz - Hech qanday 'multiple values' xatosi chiqmaydi!
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
-
 except Exception as e:
-    # Agar tepadagi 'type' yoki 'project_id' xatosini bersa, mana bu usulni sinaymiz:
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection, ttl=0)
-    except:
-        st.error(f"Ulanishda texnik xatolik: {e}")
-        st.stop()
+    st.error(f"Ulanishda texnik xatolik: {e}")
+    st.stop()
 
 # --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
 @st.fragment(run_every=1.0)
