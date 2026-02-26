@@ -21,36 +21,21 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (XATOLARNI BUTKUL YO'QOTISH) ---
+# --- QAT'IY ULANISH QISMI (ENG ODDIY VA OXIRGI USUL) ---
 try:
-    # 1. Secrets'dan barcha ma'lumotlarni nusxalaymiz
-    creds_raw = dict(st.secrets["connections"]["gsheets"])
-    
-    # 2. PEM formatini standartga keltiramiz (64 belgili qoida)
-    raw_key = creds_raw.get("private_key", "").strip()
+    # 1. Secrets ichidagi PEM kalitini xotirada to'g'rilab olamiz
+    # Streamlit secrets obyekti o'zgarmas (immutable), shuning uchun uni vaqtincha o'zgartiramiz
+    raw_key = st.secrets["connections"]["gsheets"]["private_key"].strip()
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
     content = raw_key.replace(header, "").replace(footer, "").replace("\\n", "").replace("\n", "").replace(" ", "").replace("\r", "")
     formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
     final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
-    
-    # 3. Kutubxona kutayotgan FORMATNI yig'amiz
-    # Diqqat: Hamma ma'lumot 'service_account' degan bitta kalit ichida bo'lishi shart!
-    sa_info = {
-        "type": "service_account",
-        "project_id": creds_raw.get("project_id"),
-        "private_key_id": creds_raw.get("private_key_id"),
-        "private_key": final_pem_key,
-        "client_email": creds_raw.get("client_email"),
-        "client_id": creds_raw.get("client_id"),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": creds_raw.get("client_x509_cert_url")
-    }
-    
-    # 4. Ulanishni yaratamiz (Argumentlarni sochmasdan, bitta paket qilib beramiz)
-    conn = st.connection("gsheets", type=GSheetsConnection, service_account=sa_info)
+
+    # 2. Hech qanday argumentlarsiz ulanamiz! 
+    # Kutubxona o'zi secrets.toml ichidagi [connections.gsheets] bo'limini o'qiydi.
+    # PEM xatosi chiqmasligi uchun biz to'g'rilangan kalitni uzatamiz:
+    conn = st.connection("gsheets", type=GSheetsConnection, private_key=final_pem_key)
     
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
