@@ -21,32 +21,12 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-# --- ULANISH QISMI (ENG KAFOLATLANGAN USUL) ---
+# --- ULANISH QISMI (XATOSIZ VARIANT) ---
 try:
-    # 1. Secrets lug'atini nusxalaymiz
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-    
-    # 2. Kalitni tozalash: barcha ortiqcha bo'sh joylar va noto'g'ri \n larni yo'qotamiz
-    raw_key = creds_dict["private_key"]
-    
-    # Agar kalit bitta qatorda \n bilan yozilgan bo'lsa
-    if "\\n" in raw_key:
-        clean_key = raw_key.replace("\\n", "\n")
-    else:
-        # Agar kalit ko'p qatorli bo'lsa, uni formatlab chiqamiz
-        lines = [line.strip() for line in raw_key.split('\n') if line.strip()]
-        clean_key = '\n'.join(lines)
-    
-    # Kalit oxirida albatta bitta yangi qator bo'lishi shart
-    if not clean_key.endswith("\n"):
-        clean_key += "\n"
-        
-    creds_dict["private_key"] = clean_key
-
-    # 3. Tozalangan creds bilan ulanamiz
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+    # Streamlit o'zi secrets dagi [connections.gsheets] ni topadi
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Ulanishda xatolik: {e}")
+    st.error(f"Secrets xatosi: {e}")
     st.stop()
 
 # --- TAYMER FRAGMENTI ---
