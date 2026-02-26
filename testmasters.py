@@ -21,39 +21,44 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH (OXIRGI VA ENG KUCHLI VARIANT) ---
-try:
-    # 1. Secrets'dan ma'lumotlarni lug'at qilib olamiz
-    raw_creds = dict(st.secrets["connections"]["gsheets"])
-    
-    # 2. PEM kalitini "Jarrohlik" yo'li bilan tozalaymiz
-    key = raw_creds.get("private_key", "")
-    # Sarlavhalarni va barcha qator o'tkazish belgilarini butkul olib tashlaymiz
-    clean_key = (key.replace("-----BEGIN PRIVATE KEY-----", "")
-                    .replace("-----END PRIVATE KEY-----", "")
-                    .replace("\\n", "")
-                    .replace("\n", "")
-                    .replace(" ", "")
-                    .strip())
-    
-    # 3. Kalitni RFC 7468 standartiga binoan har 64 belgidan keyin qatorga bo'lamiz
-    formatted_key = "-----BEGIN PRIVATE KEY-----\n"
-    for i in range(0, len(clean_key), 64):
-        formatted_key += clean_key[i:i+64] + "\n"
-    formatted_key += "-----END PRIVATE KEY-----\n"
-    
-    # 4. Tozalangan kalitni joyiga qo'yamiz va 'type' mojarosini yopamiz
-    raw_creds["private_key"] = formatted_key
-    raw_creds.pop("type", None) # Multiple values xatosini oldini olish
-    
-    # 5. Ulanish
-    conn = st.connection("gsheets", type=GSheetsConnection, **raw_creds)
+# --- 3. QAT'IY ULANISH (BARCHA XATOLARNI YOPUVCHI QISM) ---
+@st.cache_resource
+def get_gsheets_connection():
+    try:
+        # Secrets'dan ma'lumotlarni nusxalaymiz
+        s = dict(st.secrets["connections"]["gsheets"])
+        
+        # PEM kalitini "Jarrohlik" yo'li bilan tozalaymiz (InvalidByte xatosini yopadi)
+        key = s.get("private_key", "")
+        clean_key = (key.replace("-----BEGIN PRIVATE KEY-----", "")
+                        .replace("-----END PRIVATE KEY-----", "")
+                        .replace("\\n", "")
+                        .replace("\n", "")
+                        .replace(" ", "")
+                        .strip())
+        
+        # Kalitni standart 64 belgili formatda qayta yig'amiz
+        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
+        for i in range(0, len(clean_key), 64):
+            formatted_key += clean_key[i:i+64] + "\n"
+        formatted_key += "-----END PRIVATE KEY-----\n"
+        
+        # MOJARONI HAL QILISH: 'type' va 'project_id' xatolarini oldini olish
+        # Keraksiz kalitlarni lug'atdan olib tashlaymiz
+        s.pop("type", None)
+        s.pop("project_id", None)
+        s.pop("private_key", None)
+        
+        # Toza ulanishni qaytaramiz
+        return st.connection("gsheets", type=GSheetsConnection, private_key=formatted_key, **s)
+    except Exception as e:
+        st.error(f"Ulanishda texnik xatolik: {e}")
+        st.stop()
 
-except Exception as e:
-    st.error(f"Ulanishda texnik xatolik: {e}")
-    st.stop()
+# Ulanishni chaqiramiz
+conn = get_gsheets_connection()
 
-# --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
+# --- 4. TAYMER FRAGMENTI ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
@@ -71,7 +76,7 @@ def timer_component():
             st.session_state.page = "HOME"
             st.rerun()
 
-# --- FUNKSIYALAR (O'ZGARISHSIZ) ---
+# --- 5. FUNKSIYALAR ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
@@ -134,11 +139,11 @@ def check_already_finished(name, subject):
         return not exists.empty
     except: return False
 
-# --- SESSION STATE ---
+# --- 6. SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
-# --- SIDEBAR ADMIN ---
+# --- 7. SIDEBAR ADMIN ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password", key="admin_pwd_input")
@@ -146,16 +151,16 @@ with st.sidebar.expander("🔐 Admin Panel"):
         st.session_state.page = "ADMIN"
         st.rerun()
 
-# --- ASOSIY SAHIFALAR (O'ZGARISHSIZ) ---
+# --- 8. ASOSIY SAHIFALAR ---
 
-# 1. ADMIN
+# ADMIN
 if st.session_state.page == "ADMIN":
     apply_styles()
     st.title("Admin Panel")
     if st.button("⬅️ QAYTISH", key="back_to_home"):
         st.session_state.page = "HOME"; st.rerun()
 
-# 2. RESULT
+# RESULT
 elif st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
@@ -172,7 +177,7 @@ elif st.session_state.page == "RESULT":
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH", key="restart_test"):
         st.session_state.page = "HOME"; st.rerun()
 
-# 3. TEST 
+# TEST 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     timer_component()
@@ -216,7 +221,7 @@ elif st.session_state.page == "TEST":
                 threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
                 st.rerun()
 
-# 4. HOME
+# HOME
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
