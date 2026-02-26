@@ -11,25 +11,43 @@ import plotly.express as px
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
 
-# 2. SOZLAMALAR
+# 2. SOZLAMALAR VA SECRETS FILTRI
 try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
     SHEET_URL = st.secrets["general"]["sheet_url"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
 except KeyError:
-    st.error("Secrets.toml fayli noto'g'ri sozlangan!")
+    st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- ULANISH QISMI (XATOSIZ VARIANT) ---
+# --- QAT'IY ULANISH QISMI (PEM FILTR BILAN) ---
 try:
-    # Streamlit o'zi secrets dagi [connections.gsheets] ni topadi
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # Secrets'dan nusxa olamiz
+    creds = dict(st.secrets["connections"]["gsheets"])
+    
+    # PEM formatini RFC 1421 standartiga majburan keltiramiz
+    raw_key = creds.get("private_key", "").strip()
+    header = "-----BEGIN PRIVATE KEY-----"
+    footer = "-----END PRIVATE KEY-----"
+    
+    # Barcha ko'rinmas belgilarni tozalaymiz
+    content = raw_key.replace(header, "").replace(footer, "").replace("\\n", "").replace("\n", "").replace(" ", "").replace("\r", "")
+    
+    # Har 64 belgidan keyin yangi qator qo'shib, PEM formatini noldan yig'amiz
+    formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
+    final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
+    
+    # Tozalangan kalitni joyiga qo'yamiz
+    creds["private_key"] = final_pem_key
+    
+    # Ulanishni yaratamiz
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
-    st.error(f"Secrets xatosi: {e}")
+    st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
 
-# --- TAYMER FRAGMENTI ---
+# --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
@@ -47,7 +65,7 @@ def timer_component():
             st.session_state.page = "HOME"
             st.rerun()
 
-# --- FUNKSIYALAR ---
+# --- FUNKSIYALAR (O'ZGARISHSIZ) ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
@@ -215,7 +233,7 @@ elif st.session_state.page == "HOME":
                         mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
                         opts = [v for v in mapping.values() if v not in ['nan', '']]
                         random.shuffle(opts)
-                        test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping, "image": row.get('Rasm')})
+                        test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "map": mapping, "image": row.get('Rasm')})
                     
                     st.session_state.update({
                         "full_name": u_name, 
