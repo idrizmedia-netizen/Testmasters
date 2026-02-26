@@ -98,20 +98,9 @@ def apply_styles(subject="Default"):
 
 @st.cache_data(ttl=60)
 def load_questions():
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions")
-        df.columns = [str(c).strip() for c in df.columns]
-        return df.dropna(subset=['Fan', 'Savol'], how='all')
-    except: return None
-
-def check_already_finished(name, subject):
-    try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
-        df.columns = [str(c).strip() for c in df.columns]
-        exists = df[(df['Ism-familiya'].astype(str).str.strip().str.lower() == name.strip().lower()) & 
-                    (df['Fan'].astype(str).str.strip().str.lower() == subject.strip().lower())]
-        return not exists.empty
-    except: return False
+    df = conn.read(spreadsheet=SHEET_URL, worksheet="Questions", ttl=0)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df.dropna(subset=["Fan", "Savol"], how="any")
 
 # --- 6. SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
