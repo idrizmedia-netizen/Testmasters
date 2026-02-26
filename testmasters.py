@@ -21,9 +21,10 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-# --- ULANISH QISMI (ENG BARQAROR VARIANT) ---
+# --- ULANISH QISMI ---
 try:
-    # Hech qanday creds yoki type qo'shmaymiz, Streamlit secrets'dan o'zi o'qiydi
+    # Hech qanday murakkab creds lug'ati shart emas
+    # Streamlit o'zi secrets dagi [connections.gsheets] bo'limini taniyadi
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Ulanishda xatolik: {e}")
