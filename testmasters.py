@@ -21,15 +21,20 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-# --- ULANISH QISMI (Xatolikni oldini olish uchun tuzatildi) ---
-# Secrets ichidagi private_key ni to'g'ri formatda o'qish uchun type argumenti olib tashlandi
+# --- ULANISH QISMI (XAVFSIZ VARIANT) ---
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection) 
+    # Secrets-ni to'g'ridan-to'g'ri lug'atga olamiz va private_key-ni tozalaymiz
+    creds = dict(st.secrets["connections"]["gsheets"])
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # Ulanishni yaratamiz
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Ulanishda xatolik: {e}")
     st.stop()
 
-# --- TAYMER FRAGMENTI (O'zgarmadi) ---
+# --- TAYMER FRAGMENTI ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
@@ -47,7 +52,7 @@ def timer_component():
             st.session_state.page = "HOME"
             st.rerun()
 
-# --- FUNKSIYALAR (O'zgarmadi) ---
+# --- FUNKSIYALAR ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
@@ -58,7 +63,6 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        # ttl=0 qo'shildi, ma'lumotni keshsiz o'qish uchun
         existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
@@ -104,7 +108,6 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # ttl=0 bu yerda ham qo'shildi
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         df.columns = [str(c).strip() for c in df.columns]
         exists = df[(df['Ism-familiya'].astype(str).str.strip().str.lower() == name.strip().lower()) & 
@@ -112,11 +115,11 @@ def check_already_finished(name, subject):
         return not exists.empty
     except: return False
 
-# --- SESSION STATE (O'zgarmadi) ---
+# --- SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
-# --- SIDEBAR ADMIN (O'zgarmadi) ---
+# --- SIDEBAR ADMIN ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password", key="admin_pwd_input")
@@ -129,6 +132,7 @@ with st.sidebar.expander("🔐 Admin Panel"):
 # 1. ADMIN
 if st.session_state.page == "ADMIN":
     apply_styles()
+    st.title("Admin Panel")
     if st.button("⬅️ QAYTISH", key="back_to_home"):
         st.session_state.page = "HOME"; st.rerun()
 
@@ -153,7 +157,6 @@ elif st.session_state.page == "RESULT":
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     timer_component()
-    
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
     test_session_key = f"quiz_form_{st.session_state.get('start_time', 0)}"
@@ -208,20 +211,25 @@ elif st.session_state.page == "HOME":
             if not u_name: st.error("⚠️ Ism-familiyangizni yozing!")
             elif check_already_finished(u_name, selected_subject): st.error("❌ Siz topshirib bo'lgansiz!")
             else:
-                sub_qs = q_df[q_df['Fan'] == selected_subject].sample(n=min(len(q_df[q_df['Fan'] == selected_subject]), 30))
-                test_items = []
-                for _, row in sub_qs.iterrows():
-                    mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
-                    opts = [v for v in mapping.values() if v not in ['nan', '']]
-                    random.shuffle(opts)
-                    test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping, "image": row.get('Rasm')})
-                
-                st.session_state.update({
-                    "full_name": u_name, 
-                    "selected_subject": selected_subject, 
-                    "test_items": test_items, 
-                    "total_time": len(test_items) * 45, 
-                    "start_time": time.time(), 
-                    "page": "TEST"
-                })
-                st.rerun()
+                sub_qs = q_df[q_df['Fan'] == selected_subject]
+                if len(sub_qs) > 0:
+                    sample_size = min(len(sub_qs), 30)
+                    sampled_qs = sub_qs.sample(n=sample_size)
+                    test_items = []
+                    for _, row in sampled_qs.iterrows():
+                        mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
+                        opts = [v for v in mapping.values() if v not in ['nan', '']]
+                        random.shuffle(opts)
+                        test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping, "image": row.get('Rasm')})
+                    
+                    st.session_state.update({
+                        "full_name": u_name, 
+                        "selected_subject": selected_subject, 
+                        "test_items": test_items, 
+                        "total_time": len(test_items) * 45, 
+                        "start_time": time.time(), 
+                        "page": "TEST"
+                    })
+                    st.rerun()
+                else:
+                    st.error("Ushbu fan bo'yicha savollar topilmadi!")
