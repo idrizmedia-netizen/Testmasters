@@ -21,25 +21,38 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (ENG ODDIY VA OXIRGI USUL) ---
+# --- QAT'IY ULANISH QISMI (XATOLARNI CHEKLAB O'TISH) ---
 try:
-    # 1. Secrets ichidagi PEM kalitini xotirada to'g'rilab olamiz
-    # Streamlit secrets obyekti o'zgarmas (immutable), shuning uchun uni vaqtincha o'zgartiramiz
-    raw_key = st.secrets["connections"]["gsheets"]["private_key"].strip()
-    header = "-----BEGIN PRIVATE KEY-----"
-    footer = "-----END PRIVATE KEY-----"
-    content = raw_key.replace(header, "").replace(footer, "").replace("\\n", "").replace("\n", "").replace(" ", "").replace("\r", "")
-    formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
-    final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
-
-    # 2. Hech qanday argumentlarsiz ulanamiz! 
-    # Kutubxona o'zi secrets.toml ichidagi [connections.gsheets] bo'limini o'qiydi.
-    # PEM xatosi chiqmasligi uchun biz to'g'rilangan kalitni uzatamiz:
-    conn = st.connection("gsheets", type=GSheetsConnection, private_key=final_pem_key)
+    # Secrets'dan hamma narsani olamiz
+    s = st.secrets["connections"]["gsheets"]
     
+    # PEM kalitini tozalash (eng muhim qismi)
+    p_key = s["private_key"].replace("\\n", "\n").strip()
+    
+    # GSheets kutubxonasi kutayotgan lug'at
+    creds = {
+        "type": "service_account",
+        "project_id": s["project_id"],
+        "private_key_id": s["private_key_id"],
+        "private_key": p_key,
+        "client_email": s["client_email"],
+        "client_id": s["client_id"],
+        "auth_uri": s["auth_uri"],
+        "token_uri": s["token_uri"],
+        "auth_provider_x509_cert_url": s["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": s["client_x509_cert_url"]
+    }
+    
+    # Ulanish: Hech qanday qo'shimcha argumentlarsiz, faqat lug'atni o'zini beramiz
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+
 except Exception as e:
-    st.error(f"Ulanishda texnik xatolik: {e}")
-    st.stop()
+    # Agar tepadagi 'type' yoki 'project_id' xatosini bersa, mana bu usulni sinaymiz:
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection, ttl=0)
+    except:
+        st.error(f"Ulanishda texnik xatolik: {e}")
+        st.stop()
 
 # --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
 @st.fragment(run_every=1.0)
