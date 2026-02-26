@@ -21,29 +21,31 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH ---
+# --- QAT'IY ULANISH (FINAL VARIANT) ---
 @st.cache_resource
 def get_gsheets_connection():
     try:
-        # Secrets'ni to'liq olamiz
+        # 1. Secrets'dan nusxa olamiz
         s = dict(st.secrets["connections"]["gsheets"])
         
-        # Kalitni tozalaymiz
-        raw_key = s.get("private_key", "")
-        clean_key = raw_key.replace("\\n", "\n").strip()
+        # 2. Kalitni tozalaymiz (PEM xatosi chiqmasligi uchun)
+        if "private_key" in s:
+            s["private_key"] = s["private_key"].replace("\\n", "\n").strip()
         
-        # DIQQAT: Kutubxonaga hech qanday ortiqcha argument bermaymiz
-        # Faqat to'g'ri kalitni secrets lug'atiga qayta yuklab qo'yamiz
-        s["private_key"] = clean_key
+        # 3. MUHIM: 'type' kalitini lug'atdan o'chiramiz! 
+        # Chunki biz 'type=GSheetsConnection'ni qo'lda beryapmiz.
+        s.pop("type", None)
         
-        # Eng xavfsiz ulanish: hamma narsani lug'at orqali uzatamiz
+        # 4. Ulanish: Endi 'type' mojarosi bo'lmaydi
         return st.connection("gsheets", type=GSheetsConnection, **s)
+        
     except Exception as e:
         st.error(f"Ulanishda texnik xatolik: {e}")
         st.stop()
 
 # Ulanishni chaqiramiz
 conn = get_gsheets_connection()
+
 
 # --- 4. TAYMER FRAGMENTI ---
 @st.fragment(run_every=1.0)
