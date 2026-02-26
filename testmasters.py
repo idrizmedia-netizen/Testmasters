@@ -28,6 +28,8 @@ def check_already_finished(name, subject):
     try:
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
+            # Ustun nomlarini tozalash
+            df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
             return len(exists) > 0
     except: return False
@@ -44,7 +46,6 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        # Qisqartirilgan ulanish formatida
         existing_df = conn.read(worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(worksheet="Results", data=updated_df)
@@ -55,14 +56,22 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10) # Fanlar chiqishi uchun keshni qisqartirdik
 def load_questions():
-    """Savollarni o'qish (Qisqartirilgan)"""
+    """Savollarni o'qish (Muammolarni aniqlash bilan)"""
     try:
         df = conn.read(worksheet="Questions", ttl=0)
+        if df is None or df.empty:
+            return None
+        # Ustun nomlaridagi bo'shliqlarni olib tashlash
         df.columns = [str(c).strip() for c in df.columns]
-        return df.dropna(subset=["Fan", "Savol"], how="any")
-    except: return None
+        # Kerakli ustunlar borligini tekshirish
+        if "Fan" in df.columns and "Savol" in df.columns:
+            return df.dropna(subset=["Fan", "Savol"], how="any")
+        return None
+    except Exception as e:
+        st.error(f"Bazani o'qishda xato: {e}")
+        return None
 
 def apply_styles(subject="Default"):
     bg_images = {
@@ -119,10 +128,12 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     
-    res_df = conn.read(worksheet="Results", ttl=0)
-    st.dataframe(res_df, use_container_width=True)
+    try:
+        res_df = conn.read(worksheet="Results", ttl=0)
+        st.dataframe(res_df, use_container_width=True)
+    except: st.error("Natijalarni yuklab bo'lmadi.")
 
-# NATIJA SAHIFA (Batafsil tahlil bilan)
+# NATIJA SAHIFA
 elif st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
@@ -177,7 +188,7 @@ elif st.session_state.page == "HOME":
     u_name = st.text_input("Ism-familiyangiz:", key="user_name_input")
     
     q_df = load_questions()
-    if q_df is not None:
+    if q_df is not None and not q_df.empty:
         all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
         selected_subject = st.selectbox("Fanni tanlang:", all_subs)
         
@@ -202,3 +213,5 @@ elif st.session_state.page == "HOME":
                         "start_time": time.time(), "page": "TEST"
                     })
                     st.rerun()
+    else:
+        st.warning("⚠️ Fanlar yuklanmadi. Jadvalda 'Questions' varog'i va 'Fan' ustuni borligini tekshiring.")
