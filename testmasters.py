@@ -58,17 +58,27 @@ def background_tasks(name, subject, corrects, total, ball):
 
 @st.cache_data(ttl=10) # Fanlar chiqishi uchun keshni qisqartirdik
 def load_questions():
-    """Savollarni o'qish (Muammolarni aniqlash bilan)"""
+    """Savollarni o'qish (Jadvaldagi 'Fanlar' ustunini ham inobatga oladi)"""
     try:
         df = conn.read(worksheet="Questions", ttl=0)
         if df is None or df.empty:
             return None
+        
         # Ustun nomlaridagi bo'shliqlarni olib tashlash
         df.columns = [str(c).strip() for c in df.columns]
+        
+        # SIZNING JADVALINGIZ UCHUN: "Fanlar" sarlavhasini "Fan"ga o'zgartiramiz
+        if "Fanlar" in df.columns:
+            df = df.rename(columns={"Fanlar": "Fan"})
+            
         # Kerakli ustunlar borligini tekshirish
         if "Fan" in df.columns and "Savol" in df.columns:
+            # Bo'sh qatorlarni tashlab yuborish
             return df.dropna(subset=["Fan", "Savol"], how="any")
-        return None
+        else:
+            # Ustun topilmasa xato xabarini chiqarish (admin uchun diagnostika)
+            st.error(f"Jadvalda 'Fan' yoki 'Fanlar' ustuni topilmadi. Mavjud ustunlar: {list(df.columns)}")
+            return None
     except Exception as e:
         st.error(f"Bazani o'qishda xato: {e}")
         return None
