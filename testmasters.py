@@ -21,10 +21,9 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-# --- ULANISH QISMI (ENG TO'G'RI VA XATOSIZ VARIANT) ---
+# --- ULANISH QISMI (ENG BARQAROR VARIANT) ---
 try:
-    # Google Sheets bilan ulanish - secrets avtomatik o'qilishi uchun eng sodda usul
-    # Bu usul 'project_id' yoki 'type' bo'yicha ortiqcha xatolarni oldini oladi
+    # Hech qanday creds yoki type qo'shmaymiz, Streamlit secrets'dan o'zi o'qiydi
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Ulanishda xatolik: {e}")
