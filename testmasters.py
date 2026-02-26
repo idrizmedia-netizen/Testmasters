@@ -21,12 +21,12 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (FINAL TUZATISH - FAQAT SHU YER O'ZGARDI) ---
+# --- QAT'IY ULANISH QISMI (UNIVERSAL VARIANT) ---
 try:
-    # 1. Secrets'dan barcha ma'lumotlarni lug'atga olamiz
+    # 1. Secrets'dan ma'lumotlarni olamiz
     creds_raw = dict(st.secrets["connections"]["gsheets"])
     
-    # 2. PEM formatini RFC 1421 standartiga keltiramiz (64 belgili qatorlar)
+    # 2. PEM formatini standartga keltiramiz
     raw_key = creds_raw.get("private_key", "").strip()
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
@@ -34,26 +34,21 @@ try:
     formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
     final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
     
-    # 3. Kutubxona uchun TOZA service_account lug'atini tayyorlaymiz
-    service_account_info = {
-        "type": "service_account",
-        "project_id": creds_raw.get("project_id"),
-        "private_key_id": creds_raw.get("private_key_id"),
-        "private_key": final_pem_key,
-        "client_email": creds_raw.get("client_email"),
-        "client_id": creds_raw.get("client_id"),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": creds_raw.get("client_x509_cert_url")
-    }
+    # 3. Lug'atni tozalaymiz va tayyorlaymiz
+    creds_raw["private_key"] = final_pem_key
+    creds_raw["type"] = "service_account" # Type har doim bo'lishi shart
     
-    # 4. Ulanishni 'service_account' argumenti orqali yaratamiz
-    conn = st.connection("gsheets", type=GSheetsConnection, service_account=service_account_info)
+    # 4. Eng universal ulanish usuli:
+    # Agarda kutubxona 'service_account'ni tanimasa, biz to'g'ridan-to'g'ri lug'atni uzatamiz
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds_raw)
     
 except Exception as e:
-    st.error(f"Ulanishda texnik xatolik: {e}")
-    st.stop()
+    # Agar tepadagi xato bersa, muqobil (shortcut) usulni sinaymiz
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+    except:
+        st.error(f"Ulanishda texnik xatolik: {e}")
+        st.stop()
 
 # --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
 @st.fragment(run_every=1.0)
