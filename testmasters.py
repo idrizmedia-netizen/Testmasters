@@ -23,22 +23,13 @@ except KeyError:
 
 # --- QAT'IY ULANISH (ENG SODDA VA XATOSIZ VARIANT) ---
 try:
-    # 1. Private keyni secrets ichidan olib, xotirada to'g'rilaymiz
-    # Bu InvalidByte (PEM) xatosini oldini oladi
-    raw_key = st.secrets["connections"]["gsheets"]["private_key"]
-    clean_key = raw_key.replace("\\n", "\n").strip()
-    
-    # 2. Kutubxonaga HECH QANDAY lug'at (**s) bermaymiz!
-    # U secrets.toml ichidagi [connections.gsheets] ni O'ZI topadi.
-    # Biz faqat to'g'rilangan kalitni uzatamiz.
-    conn = st.connection("gsheets", type=GSheetsConnection, private_key=clean_key)
-    
+    # st-gsheets-connection secrets.toml ichidagi [connections.gsheets] va
+    # [connections.gsheets.service_account] dan o'zi o'qiydi.
+    # Shuning uchun private_key ni kod orqali uzatmaymiz.
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
-
-# Ulanishni chaqiramiz
-conn = get_gsheets_connection()
 
 
 # --- 4. TAYMER FRAGMENTI ---
