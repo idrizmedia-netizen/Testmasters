@@ -21,27 +21,21 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH (FINAL VARIANT) ---
-@st.cache_resource
-def get_gsheets_connection():
-    try:
-        # 1. Secrets'dan nusxa olamiz
-        s = dict(st.secrets["connections"]["gsheets"])
-        
-        # 2. Kalitni tozalaymiz (PEM xatosi chiqmasligi uchun)
-        if "private_key" in s:
-            s["private_key"] = s["private_key"].replace("\\n", "\n").strip()
-        
-        # 3. MUHIM: 'type' kalitini lug'atdan o'chiramiz! 
-        # Chunki biz 'type=GSheetsConnection'ni qo'lda beryapmiz.
-        s.pop("type", None)
-        
-        # 4. Ulanish: Endi 'type' mojarosi bo'lmaydi
-        return st.connection("gsheets", type=GSheetsConnection, **s)
-        
-    except Exception as e:
-        st.error(f"Ulanishda texnik xatolik: {e}")
-        st.stop()
+# --- QAT'IY ULANISH (ENG SODDA VA XATOSIZ VARIANT) ---
+try:
+    # 1. Private keyni secrets ichidan olib, xotirada to'g'rilaymiz
+    # Bu InvalidByte (PEM) xatosini oldini oladi
+    raw_key = st.secrets["connections"]["gsheets"]["private_key"]
+    clean_key = raw_key.replace("\\n", "\n").strip()
+    
+    # 2. Kutubxonaga HECH QANDAY lug'at (**s) bermaymiz!
+    # U secrets.toml ichidagi [connections.gsheets] ni O'ZI topadi.
+    # Biz faqat to'g'rilangan kalitni uzatamiz.
+    conn = st.connection("gsheets", type=GSheetsConnection, private_key=clean_key)
+    
+except Exception as e:
+    st.error(f"Ulanishda texnik xatolik: {e}")
+    st.stop()
 
 # Ulanishni chaqiramiz
 conn = get_gsheets_connection()
