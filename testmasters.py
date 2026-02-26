@@ -21,11 +21,12 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH (ENG SODDA USUL) ---
+# --- QAT'IY ULANISH (ENG TOZA VA STANDART USUL) ---
 try:
-    # Kutubxonaga hech qanday argument bermaymiz. 
-    # U secrets.toml ichidagi [connections.gsheets] bo'limini o'zi o'qiydi.
+    # Kutubxonaga hech qanday lug'at yoki ortiqcha argument bermaymiz.
+    # U secrets.toml ichidagi [connections.gsheets] bo'limini AVTOMATIK topadi.
     conn = st.connection("gsheets", type=GSheetsConnection)
+    
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
