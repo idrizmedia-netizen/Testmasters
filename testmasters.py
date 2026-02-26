@@ -23,7 +23,26 @@ except KeyError:
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- ASINXRON FUNKSIYA ---
+# --- TAYMER FRAGMENTI (Xatolikni oldini oluvchi barqaror qism) ---
+@st.fragment(run_every=1.0)
+def timer_component():
+    if st.session_state.page == "TEST" and 'start_time' in st.session_state:
+        elapsed = time.time() - st.session_state.start_time
+        rem = max(0, int(st.session_state.total_time - elapsed))
+        
+        # Sidebar timer dizayni (O'zgarmadi)
+        st.sidebar.markdown(f'''
+            <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 1px solid #00C9FF; text-align:center;">
+                <h1 style="color:#00C9FF; margin:0; font-size:40px;">{rem//60:02d}:{rem%60:02d}</h1>
+                <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        if rem <= 0:
+            st.session_state.page = "HOME"
+            st.rerun()
+
+# --- FUNKSIYALAR (O'zgarmadi) ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
@@ -44,26 +63,6 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-# --- TAYMER FRAGMENTI (Xatolikni oldini oluvchi asosiy qism) ---
-@st.fragment(run_every=1.0)
-def timer_component():
-    if st.session_state.page == "TEST":
-        elapsed = time.time() - st.session_state.start_time
-        rem = max(0, int(st.session_state.total_time - elapsed))
-        
-        # Sidebar timer dizayni
-        st.sidebar.markdown(f'''
-            <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 1px solid #00C9FF; text-align:center;">
-                <h1 style="color:#00C9FF; margin:0; font-size:40px;">{rem//60:02d}:{rem%60:02d}</h1>
-                <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
-            </div>
-        ''', unsafe_allow_html=True)
-        
-        if rem <= 0:
-            st.session_state.page = "HOME"
-            st.rerun()
-
-# --- AUDIO VA STIL (O'zgarmadi) ---
 def play_audio(sound_type="success"):
     urls = {
         "success": "https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3",
@@ -110,22 +109,22 @@ def check_already_finished(name, subject):
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
-# --- SIDEBAR ---
+# --- SIDEBAR ADMIN ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
-    password = st.text_input("Parol:", type="password")
-    if password == ADMIN_PASS and st.button("Kirish"):
+    password = st.text_input("Parol:", type="password", key="admin_pwd_input")
+    if password == ADMIN_PASS and st.button("Kirish", key="admin_login_btn"):
         st.session_state.page = "ADMIN"
         st.rerun()
 
-# --- ASOSIY MANTIQ (Sahifalar) ---
+# --- ASOSIY SAHIFALAR ---
 
 # 1. ADMIN
 if st.session_state.page == "ADMIN":
     apply_styles()
-    if st.button("⬅️ QAYTISH"):
+    if st.button("⬅️ QAYTISH", key="back_to_home"):
         st.session_state.page = "HOME"; st.rerun()
-    # Bu yerda show_admin_panel() funksiyasini chaqirishingiz mumkin
+    # show_admin_panel() mantiqini bu yerga qo'shishingiz mumkin
 
 # 2. RESULT
 elif st.session_state.page == "RESULT":
@@ -141,26 +140,37 @@ elif st.session_state.page == "RESULT":
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
             st.markdown(f'<div class="analysis-card" style="border-left-color: {border_color};"><p><b>Savol:</b> {log["question"]}</p><p style="color:{border_color};">Javobingiz: {log["user_ans"]}</p></div>', unsafe_allow_html=True)
             
-    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
+    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH", key="restart_test"):
         st.session_state.page = "HOME"; st.rerun()
 
-# 3. TEST
+# 3. TEST (Eng muhim qism)
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
-    timer_component() # Fragmentli taymer
+    timer_component()
     
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
-    with st.form("quiz_form", clear_on_submit=False):
+    # Formaga unikal key berish DOM xatosini oldini oladi
+    with st.form(key=f"quiz_form_{st.session_state.get('start_time', 0)}", clear_on_submit=False):
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
             if item.get('image') and str(item['image']) != 'nan':
                 st.image(item['image'], use_container_width=True)
-            user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}", label_visibility="collapsed")
+            
+            # Radio tugmalarga unikal key berish shart
+            user_answers[i] = st.radio(
+                "Tanlang:", 
+                item['o'], 
+                index=None, 
+                key=f"q_{i}_{st.session_state.get('start_time', 0)}", 
+                label_visibility="collapsed"
+            )
             st.markdown("---")
             
-        if st.form_submit_button("🏁 TESTNI TUGATISH"):
+        submit = st.form_submit_button("🏁 TESTNI TUGATISH")
+        
+        if submit:
             if None in user_answers.values():
                 st.error("⚠️ Barcha savollarni belgilang!")
             else:
@@ -183,13 +193,13 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
-    u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev")
+    u_name = st.text_input("Ism-familiyangiz:", placeholder="Masalan: Ali Valiyev", key="user_name_input")
     q_df = load_questions()
     if q_df is not None:
         all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
-        selected_subject = st.selectbox("Fanni tanlang:", all_subs)
+        selected_subject = st.selectbox("Fanni tanlang:", all_subs, key="subject_select")
         
-        if st.button("🚀 TESTNI BOSHLASH"):
+        if st.button("🚀 TESTNI BOSHLASH", key="start_test_btn"):
             if not u_name: st.error("⚠️ Ism-familiyangizni yozing!")
             elif check_already_finished(u_name, selected_subject): st.error("❌ Siz topshirib bo'lgansiz!")
             else:
@@ -201,5 +211,12 @@ elif st.session_state.page == "HOME":
                     random.shuffle(opts)
                     test_items.append({"q": row['Savol'], "o": opts, "c": str(row['Javob']), "map": mapping, "image": row.get('Rasm')})
                 
-                st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST"})
+                st.session_state.update({
+                    "full_name": u_name, 
+                    "selected_subject": selected_subject, 
+                    "test_items": test_items, 
+                    "total_time": len(test_items) * 45, 
+                    "start_time": time.time(), 
+                    "page": "TEST"
+                })
                 st.rerun()
