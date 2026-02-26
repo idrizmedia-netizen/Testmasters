@@ -21,14 +21,20 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-# --- ULANISH QISMI (XAVFSIZ VARIANT) ---
+# --- ULANISH QISMI (XATOLIKLAR TUZATILDI) ---
 try:
-    # Secrets-ni to'g'ridan-to'g'ri lug'atga olamiz va private_key-ni tozalaymiz
+    # Secrets dan ma'lumotlarni nusxalab olamiz
     creds = dict(st.secrets["connections"]["gsheets"])
+    
+    # 1. 'type' kalitini o'chirib tashlaymiz (Multiple values xatosini oldini olish uchun)
+    if "type" in creds:
+        del creds["type"]
+        
+    # 2. private_key dagi yangi qator belgilarini to'g'rilaymiz
     if "private_key" in creds:
         creds["private_key"] = creds["private_key"].replace("\\n", "\n")
     
-    # Ulanishni yaratamiz
+    # 3. Ulanishni aniq ko'rsatilgan tur (GSheetsConnection) bilan yaratamiz
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Ulanishda xatolik: {e}")
