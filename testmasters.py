@@ -21,36 +21,23 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- 3. QAT'IY ULANISH (BARCHA XATOLARNI YOPUVCHI QISM) ---
+# --- QAT'IY ULANISH ---
 @st.cache_resource
 def get_gsheets_connection():
     try:
-        # Secrets'dan ma'lumotlarni nusxalaymiz
+        # Secrets'ni to'liq olamiz
         s = dict(st.secrets["connections"]["gsheets"])
         
-        # PEM kalitini "Jarrohlik" yo'li bilan tozalaymiz (InvalidByte xatosini yopadi)
-        key = s.get("private_key", "")
-        clean_key = (key.replace("-----BEGIN PRIVATE KEY-----", "")
-                        .replace("-----END PRIVATE KEY-----", "")
-                        .replace("\\n", "")
-                        .replace("\n", "")
-                        .replace(" ", "")
-                        .strip())
+        # Kalitni tozalaymiz
+        raw_key = s.get("private_key", "")
+        clean_key = raw_key.replace("\\n", "\n").strip()
         
-        # Kalitni standart 64 belgili formatda qayta yig'amiz
-        formatted_key = "-----BEGIN PRIVATE KEY-----\n"
-        for i in range(0, len(clean_key), 64):
-            formatted_key += clean_key[i:i+64] + "\n"
-        formatted_key += "-----END PRIVATE KEY-----\n"
+        # DIQQAT: Kutubxonaga hech qanday ortiqcha argument bermaymiz
+        # Faqat to'g'ri kalitni secrets lug'atiga qayta yuklab qo'yamiz
+        s["private_key"] = clean_key
         
-        # MOJARONI HAL QILISH: 'type' va 'project_id' xatolarini oldini olish
-        # Keraksiz kalitlarni lug'atdan olib tashlaymiz
-        s.pop("type", None)
-        s.pop("project_id", None)
-        s.pop("private_key", None)
-        
-        # Toza ulanishni qaytaramiz
-        return st.connection("gsheets", type=GSheetsConnection, private_key=formatted_key, **s)
+        # Eng xavfsiz ulanish: hamma narsani lug'at orqali uzatamiz
+        return st.connection("gsheets", type=GSheetsConnection, **s)
     except Exception as e:
         st.error(f"Ulanishda texnik xatolik: {e}")
         st.stop()
