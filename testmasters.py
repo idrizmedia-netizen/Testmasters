@@ -21,33 +21,36 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH QISMI (PEM FILTR BILAN) ---
+# --- QAT'IY ULANISH QISMI (XATOLAR TUZATILGAN) ---
 try:
     # Secrets'dan nusxa olamiz
     creds = dict(st.secrets["connections"]["gsheets"])
     
-    # PEM formatini RFC 1421 standartiga majburan keltiramiz
+    # 1. PEM formatini RFC 1421 standartiga majburan keltiramiz
     raw_key = creds.get("private_key", "").strip()
     header = "-----BEGIN PRIVATE KEY-----"
     footer = "-----END PRIVATE KEY-----"
     
-    # Barcha ko'rinmas belgilarni tozalaymiz
+    # Barcha ko'rinmas belgilarni (space, \n, \r) tozalaymiz
     content = raw_key.replace(header, "").replace(footer, "").replace("\\n", "").replace("\n", "").replace(" ", "").replace("\r", "")
     
     # Har 64 belgidan keyin yangi qator qo'shib, PEM formatini noldan yig'amiz
     formatted_content = "\n".join([content[i:i+64] for i in range(0, len(content), 64)])
     final_pem_key = f"{header}\n{formatted_content}\n{footer}\n"
     
-    # Tozalangan kalitni joyiga qo'yamiz
+    # Tozalangan kalitni lug'atga qaytaramiz
     creds["private_key"] = final_pem_key
     
-    # Ulanishni yaratamiz
+    # 2. 'multiple values for keyword argument type' xatosini yo'qotish
+    creds.pop("type", None) 
+    
+    # 3. Ulanishni yaratamiz
     conn = st.connection("gsheets", type=GSheetsConnection, **creds)
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
 
-# --- TAYMER FRAGMENTI (O'ZGARISHSIZ) ---
+# --- TAYMER FRAGMENTI ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
@@ -65,7 +68,7 @@ def timer_component():
             st.session_state.page = "HOME"
             st.rerun()
 
-# --- FUNKSIYALAR (O'ZGARISHSIZ) ---
+# --- FUNKSIYALAR ---
 def background_tasks(name, subject, corrects, total, ball):
     try:
         new_row = pd.DataFrame([{
