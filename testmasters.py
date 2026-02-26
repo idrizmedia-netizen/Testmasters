@@ -21,16 +21,21 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan!")
     st.stop()
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# --- ULANISH QISMI (Xatolikni oldini olish uchun tuzatildi) ---
+# Secrets ichidagi private_key ni to'g'ri formatda o'qish uchun type argumenti olib tashlandi
+try:
+    conn = st.connection("gsheets") 
+except Exception as e:
+    st.error(f"Ulanishda xatolik: {e}")
+    st.stop()
 
-# --- TAYMER FRAGMENTI (Xatolikni oldini oluvchi barqaror qism) ---
+# --- TAYMER FRAGMENTI (O'zgarmadi) ---
 @st.fragment(run_every=1.0)
 def timer_component():
     if st.session_state.page == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
         
-        # Sidebar timer dizayni
         st.sidebar.markdown(f'''
             <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 1px solid #00C9FF; text-align:center;">
                 <h1 style="color:#00C9FF; margin:0; font-size:40px;">{rem//60:02d}:{rem%60:02d}</h1>
@@ -53,7 +58,8 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
+        # ttl=0 qo'shildi, ma'lumotni keshsiz o'qish uchun
+        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
     except: pass
@@ -98,18 +104,19 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results")
+        # ttl=0 bu yerda ham qo'shildi
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         df.columns = [str(c).strip() for c in df.columns]
         exists = df[(df['Ism-familiya'].astype(str).str.strip().str.lower() == name.strip().lower()) & 
                     (df['Fan'].astype(str).str.strip().str.lower() == subject.strip().lower())]
         return not exists.empty
     except: return False
 
-# --- SESSION STATE ---
+# --- SESSION STATE (O'zgarmadi) ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
-# --- SIDEBAR ADMIN ---
+# --- SIDEBAR ADMIN (O'zgarmadi) ---
 st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password", key="admin_pwd_input")
@@ -142,14 +149,13 @@ elif st.session_state.page == "RESULT":
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH", key="restart_test"):
         st.session_state.page = "HOME"; st.rerun()
 
-# 3. TEST (Eng muhim optimizatsiya qilingan qism)
+# 3. TEST 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     timer_component()
     
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
-    # Formaga unikal key berish DOM xatosini butunlay yo'qotadi
     test_session_key = f"quiz_form_{st.session_state.get('start_time', 0)}"
     with st.form(key=test_session_key, clear_on_submit=False):
         user_answers = {}
@@ -158,7 +164,6 @@ elif st.session_state.page == "TEST":
             if item.get('image') and str(item['image']) != 'nan':
                 st.image(item['image'], use_container_width=True)
             
-            # Radio tugmalarga sessiya bilan bog'liq unikal key berish
             user_answers[i] = st.radio(
                 "Tanlang:", 
                 item['o'], 
