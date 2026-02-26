@@ -24,7 +24,7 @@ except KeyError:
 # --- ULANISH QISMI (Xatolikni oldini olish uchun tuzatildi) ---
 # Secrets ichidagi private_key ni to'g'ri formatda o'qish uchun type argumenti olib tashlandi
 try:
-    conn = st.connection("gsheets") 
+    conn = st.connection("gsheets", type=GSheetsConnection) 
 except Exception as e:
     st.error(f"Ulanishda xatolik: {e}")
     st.stop()
