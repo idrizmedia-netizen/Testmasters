@@ -21,17 +21,11 @@ except KeyError:
     st.error("Secrets.toml fayli noto'g'ri sozlangan! [general] bo'limini tekshiring.")
     st.stop()
 
-# --- QAT'IY ULANISH (ENG TOZA VARIANT) ---
+# --- QAT'IY ULANISH (ENG SODDA USUL) ---
 try:
-    # Secrets-dan nusxa olamiz
-    creds = dict(st.secrets["connections"]["gsheets"])
-    
-    # MOJARONI HAL QILISH: Lug'at ichidagi 'type'ni o'chirib tashlaymiz
-    # Chunki 'type'ni pastda GSheetsConnection deb o'zimiz beryapmiz
-    creds.pop("type", None)
-    
-    # Endi ulanamiz - Hech qanday 'multiple values' xatosi chiqmaydi!
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+    # Kutubxonaga hech qanday argument bermaymiz. 
+    # U secrets.toml ichidagi [connections.gsheets] bo'limini o'zi o'qiydi.
+    conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Ulanishda texnik xatolik: {e}")
     st.stop()
