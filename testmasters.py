@@ -56,26 +56,27 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-@st.cache_data(ttl=10)
+@st.cache_data(ttl=0) # Keshni o'chirib, har safar yangi ma'lumotni o'qiymiz
 def load_questions():
     try:
-        df = conn.read(worksheet="Questions")  # spreadsheet=... olib tashlandi
-
+        # Jadvalni o'qish (shunchaki worksheet nomi bilan)
+        df = conn.read(worksheet="Questions", ttl=0) 
+        
         if df is None or df.empty:
             return None
-
+        
+        # Sarlavhalarni tozalash
         df.columns = [str(c).strip() for c in df.columns]
-
-        required = {"Fan", "Savol", "A", "B", "C", "D", "Javob", "Vaqt"}
-        missing = required - set(df.columns)
-        if missing:
-            st.error(f"Sheetda ustun yetishmayapti: {', '.join(sorted(missing))}")
+        
+        # Kerakli ustunlar mavjudligini tekshirish
+        required = {"Fan", "Savol", "A", "B", "C", "D", "Javob"}
+        if not required.issubset(set(df.columns)):
+            st.error(f"Ustunlar topilmadi. Jadvalingizdagi ustunlar: {list(df.columns)}")
             return None
-
+            
         return df.dropna(subset=["Fan", "Savol"], how="any")
-
     except Exception as e:
-        st.error(f"Ulanish xatosi: {e}")
+        st.error(f"Xatolik: {e}")
         return None
 def apply_styles(subject="Default"):
     bg_images = {
