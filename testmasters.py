@@ -56,28 +56,27 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=10)
 def load_questions():
     try:
-        # Secrets-dagi toza havolani chaqiramiz
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        
-        # 'use_cache=False' va to'g'ridan-to'g'ri o'qish
-        df = conn.read(spreadsheet=sheet_url, worksheet="Questions", ttl=0)
-        
-        if df is not None and not df.empty:
-            # Sarlavhalarni tozalash
-            df.columns = [str(c).strip() for c in df.columns]
-            
-            # Kerakli ustunlar mavjudligini tekshirish
-            if "Fan" in df.columns and "Savol" in df.columns:
-                return df.dropna(subset=["Fan", "Savol"], how="any")
-        return None
+        df = conn.read(worksheet="Questions")  # spreadsheet=... olib tashlandi
+
+        if df is None or df.empty:
+            return None
+
+        df.columns = [str(c).strip() for c in df.columns]
+
+        required = {"Fan", "Savol", "A", "B", "C", "D", "Javob", "Vaqt"}
+        missing = required - set(df.columns)
+        if missing:
+            st.error(f"Sheetda ustun yetishmayapti: {', '.join(sorted(missing))}")
+            return None
+
+        return df.dropna(subset=["Fan", "Savol"], how="any")
+
     except Exception as e:
-        # Xatoni chiqarish
         st.error(f"Ulanish xatosi: {e}")
         return None
-
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
