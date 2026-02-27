@@ -58,22 +58,30 @@ def background_tasks(name, subject, corrects, total, ball):
 
 @st.cache_data(ttl=5)
 def load_questions():
+    """Jadvalni to'g'ridan-to'g'ri o'qish"""
     try:
-        # worksheet="Questions" - bu varaq nomi. 
-        # header=0 - 1-qator sarlavha ekanligini bildiradi.
-        df = conn.read(worksheet="Questions", ttl=0)
+        # Spreadsheet havolasini gid-siz, shunchaki /edit bilan yozamiz
+        sheet_url = "https://docs.google.com/spreadsheets/d/1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U/edit"
         
-        # Sarlavhalarni tozalash (bo'shliqlarni olib tashlash)
-        df.columns = [str(c).strip() for c in df.columns]
+        # worksheet="Questions" jadvalingizdagi nom bilan bir xil bo'lishi shart
+        df = conn.read(spreadsheet=sheet_url, worksheet="Questions", ttl=0)
         
-        # Agar jadvalda 2-qatorni o'chirib tashlasangiz, 
-        # kod to'g'ri ishlaydi:
-        if "Fan" in df.columns and "Savol" in df.columns:
-            return df.dropna(subset=["Fan", "Savol"], how="any")
+        if df is not None and not df.empty:
+            # Ustun nomlarini majburiy tozalaymiz
+            df.columns = [str(c).strip() for c in df.columns]
             
+            # Agar 'Fanlar' ustuni bo'lsa, uni 'Fan'ga o'zgartiramiz
+            if "Fanlar" in df.columns:
+                df = df.rename(columns={"Fanlar": "Fan"})
+            
+            # Savollar va Fan ustunlari borligini tekshiramiz
+            if "Fan" in df.columns and "Savol" in df.columns:
+                # Bo'sh qatorlarni o'chirib tashlaymiz
+                df = df.dropna(subset=["Fan", "Savol"], how="any")
+                return df
         return None
     except Exception as e:
-        st.error(f"Bazani o'qishda xato: {e}")
+        st.error(f"Ulanish xatosi (400): {e}")
         return None
 
 def apply_styles(subject="Default"):
