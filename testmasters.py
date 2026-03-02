@@ -27,18 +27,10 @@ except Exception as e:
 
 def load_questions():
     try:
-        # Nashr qilingan CSV link (sizning linkiningiz asosida)
-        # Oxirini /pubhtml dan /pub?output=csv ga o'zgartiramiz
         csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
-        
-        # To'g'ridan-to'g'ri pandas orqali o'qiymiz
         df = pd.read_csv(csv_url)
-        
         if df is not None and not df.empty:
-            # Ustun nomlarini tozalash
             df.columns = [str(c).strip() for c in df.columns]
-            
-            # "Fan" ustuni borligini tekshiramiz
             if "Fan" in df.columns:
                 return df
             else:
@@ -47,10 +39,9 @@ def load_questions():
     except Exception as e:
         st.error(f"Ma'lumot o'qishda xatolik: {e}")
         return None
+
 def check_already_finished(name, subject):
-    """Foydalanuvchi avval topshirganini tekshirish"""
     try:
-        # Natijalarni o'qishda worksheet nomini aniq ko'rsatamiz
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -60,7 +51,6 @@ def check_already_finished(name, subject):
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
-    """Ma'lumotlarni yozish va Telegramga yuborish"""
     try:
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -70,8 +60,6 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        
-        # Mavjud natijalarni o'qib, yangisini qo'shamiz
         existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
@@ -100,23 +88,31 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER ---
-@st.fragment(run_every=1.0)
-def timer_component():
+# --- 4. TAYMER (HTML + JS VARIANT) ---
+def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
-        rem = max(0, int(st.session_state.total_time - elapsed))
+        remaining = max(0, int(st.session_state.total_time - elapsed))
         
-        # Murakkab HTML o'rniga oddiyroq usuldan foydalanamiz
-        # Bu Python 3.13 da xato bermaydi
-        with st.sidebar:
-            st.metric("⏱ Qolgan vaqt", f"{rem//60:02d}:{rem%60:02d}")
-            if rem < 60:
-                st.warning("⚠️ Vaqt kam qoldi!")
-
-        if rem <= 0:
-            st.session_state.page = "RESULT" # Vaqt tugasa natijaga o'tsin
-            st.rerun()
+        timer_html = f"""
+        <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center; margin-bottom: 20px;">
+            <h1 id="countdown" style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">00:00</h1>
+            <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
+        </div>
+        <script>
+            var seconds = {remaining};
+            var x = setInterval(function() {{
+                var m = Math.floor(seconds / 60);
+                var s = seconds % 60;
+                document.getElementById("countdown").innerHTML = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+                if (seconds <= 0) {{
+                    clearInterval(x);
+                }}
+                seconds--;
+            }}, 1000);
+        </script>
+        """
+        st.sidebar.markdown(timer_html, unsafe_allow_html=True)
 
 # --- 5. SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
@@ -132,36 +128,30 @@ with st.sidebar.expander("🔐 Admin Panel"):
 
 # --- 7. SAHIFALAR ---
 
-# ADMIN SAHIFA
 if st.session_state.page == "ADMIN":
     apply_styles()
     st.title("📊 Natijalar (Admin)")
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
-    
     try:
         res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
     except: st.error("Natijalarni yuklab bo'lmadi.")
 
-# NATIJA SAHIFA
 elif st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
-    
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
             st.markdown(f'<div class="analysis-card" style="border-left-color: {border_color};"><p><b>Savol:</b> {log["question"]}</p><p style="color:{border_color};">Javobingiz: {log["user_ans"]}</p></div>', unsafe_allow_html=True)
-            
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
 
-# TEST SAHIFA
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
-    timer_component()
+    show_html_timer() # HTML taymerni chaqiramiz
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
     with st.form(key="quiz_form"):
@@ -170,7 +160,6 @@ elif st.session_state.page == "TEST":
             st.markdown(f"**{i+1}. {item['q']}**")
             if item.get('image') and str(item['image']) != 'nan':
                 st.image(item['image'])
-            
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
             st.markdown("---")
             
@@ -192,17 +181,14 @@ elif st.session_state.page == "TEST":
                 threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
                 st.rerun()
 
-# ASOSIY SAHIFA
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
     u_name = st.text_input("Ism-familiyangiz:", key="user_name_input")
-    
     q_df = load_questions()
     if q_df is not None and not q_df.empty:
         all_subs = sorted(q_df['Fan'].dropna().unique().tolist())
         selected_subject = st.selectbox("Fanni tanlang:", all_subs)
-        
         if st.button("🚀 TESTNI BOSHLASH"):
             if not u_name: st.error("⚠️ Ism-familiyangizni yozing!")
             elif check_already_finished(u_name, selected_subject): st.error("❌ Siz topshirib bo'lgansiz!")
