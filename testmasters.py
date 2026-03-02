@@ -61,20 +61,24 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Secrets-dan linkni aniq ko'rsatib o'qiymiz
+        # Spreadsheet linkini secretsdan olamiz
         url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        # Bad Request'ni oldini olish uchun spreadsheet argumentini qo'shamiz
-        df = conn.read(spreadsheet=url, worksheet="Questions", ttl=0)
+        
+        # Diqqat: Bu yerda worksheet nomini olib tashlab ko'ramiz
+        # Agar Questions varag'i jadvalda BIRINCHI bo'lib turgan bo'lsa, 
+        # u avtomatik ravishda o'sha yerdan o'qiydi
+        df = conn.read(spreadsheet=url, ttl=0) 
         
         if df is not None and not df.empty:
+            # Ustunlarni tozalash
             df.columns = [str(c).strip() for c in df.columns]
+            # Agar sizda bir nechta varaq bo'lsa, fan bo'yicha filtrlaymiz
             return df
         return None
     except Exception as e:
-        # Xatoni aynan nimaligini ekranda ko'rish uchun:
         st.error(f"Google bilan aloqa uzildi: {e}")
         return None
-
+        
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
