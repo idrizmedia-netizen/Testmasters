@@ -17,7 +17,7 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
+    # Service Account orqali ulanish (secrets.toml dagi ma'lumotlarni avtomatik oladi)
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Sozlamalarda xatolik: {e}")
@@ -42,8 +42,8 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # TTL=0 keshni o'chiradi va yangi natijalarni o'qiydi
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        # worksheet nomi "Results" ekanligiga ishonch hosil qiling
+        df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
@@ -61,11 +61,14 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        
+        # Ma'lumotni o'qish va yangisini qo'shib yozish
+        existing_df = conn.read(worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
+        conn.update(worksheet="Results", data=updated_df)
     except: pass
 
+    # Telegramga xabar yuborish
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
@@ -92,7 +95,7 @@ def apply_styles(subject="Default"):
 # --- 4. TAYMER (AVTOMAT YANGILANADIGAN) ---
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
-        # Sahifani har 1 soniyada "turtib" turadi, shunda taymer o'zgaradi
+        # Sahifani har 1 soniyada "turtib" turadi, shunda taymer o'z-o'zidan yuradi
         st_autorefresh(interval=1000, key="timer_refresh")
         
         elapsed = time.time() - st.session_state.start_time
@@ -106,6 +109,8 @@ def show_html_timer():
         """, unsafe_allow_html=True)
         
         if remaining <= 0:
+            st.warning("Vaqt tugadi!")
+            # Testni avtomatik tugatish mantig'ini bu yerga qo'shish mumkin
             st.session_state.page = "HOME"
             st.rerun()
 
@@ -129,8 +134,8 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # ttl=0 natijalarni har doim yangi ko'rsatadi
-        res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        # Service account orqali Results varag'ini o'qish
+        res_df = conn.read(worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
     except: st.error("Natijalarni yuklab bo'lmadi.")
 
@@ -174,6 +179,7 @@ elif st.session_state.page == "TEST":
                 
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
+                # Natijani saqlashni backgroundda ishga tushiramiz
                 threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
                 st.rerun()
 
