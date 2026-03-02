@@ -52,7 +52,7 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # 1. Yangi qator yaratish
+        # 1. Yangi qator ma'lumotlarini tayyorlash
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
@@ -62,27 +62,35 @@ def background_tasks(name, subject, corrects, total, ball):
             "Ball (%)": f"{ball}%"
         }])
         
-        # 2. Mavjud ma'lumotni o'qish va birlashtirish
+        # 2. Results varag'ini o'qish (TTL=0 keshni o'chiradi)
+        # DIQQAT: GSheets'dagi varaq nomi aynan "Results" bo'lishi shart!
         try:
             existing_df = conn.read(worksheet="Results", ttl=0)
             if existing_df is not None and not existing_df.empty:
+                # Ustun nomlarini koddagi bilan moslash (bo'shliqlarni olib tashlash)
                 existing_df.columns = [str(c).strip() for c in existing_df.columns]
                 updated_df = pd.concat([existing_df, new_row], ignore_index=True)
             else:
                 updated_df = new_row
-        except:
+        except Exception:
+            # Agar varaq bo'sh bo'lsa yoki hali birorta qator bo'lmasa
             updated_df = new_row
             
-        # 3. GSheets-ga yozish
+        # 3. Jadvalga qayta yozish (Update)
         conn.update(worksheet="Results", data=updated_df)
+        print("Muvaffaqiyatli saqlandi!")
+        
     except Exception as e:
-        print(f"GSheets error: {e}")
+        # Xatoni ekranda ko'rish uchun (faqat tekshirish vaqtida)
+        st.error(f"GSheets'ga yozishda xatolik yuz berdi: {e}")
 
-    # Telegramga xabar
-    text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
-    except: pass
+    # Telegram xabar (bu qismi ishlayotgan bo'lsa tegmang)
+    try:
+        text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+    except:
+        pass
 
 def apply_styles(subject="Default"):
     bg_images = {
