@@ -106,14 +106,16 @@ def timer_component():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
         rem = max(0, int(st.session_state.total_time - elapsed))
-        st.sidebar.markdown(f'''
-            <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 1px solid #00C9FF; text-align:center;">
-                <h1 style="color:#00C9FF; margin:0; font-size:40px;">{rem//60:02d}:{rem%60:02d}</h1>
-                <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
-            </div>
-        ''', unsafe_allow_html=True)
+        
+        # Murakkab HTML o'rniga oddiyroq usuldan foydalanamiz
+        # Bu Python 3.13 da xato bermaydi
+        with st.sidebar:
+            st.metric("⏱ Qolgan vaqt", f"{rem//60:02d}:{rem%60:02d}")
+            if rem < 60:
+                st.warning("⚠️ Vaqt kam qoldi!")
+
         if rem <= 0:
-            st.session_state.page = "HOME"
+            st.session_state.page = "RESULT" # Vaqt tugasa natijaga o'tsin
             st.rerun()
 
 # --- 5. SESSION STATE ---
