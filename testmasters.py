@@ -27,7 +27,7 @@ except Exception as e:
 
 def load_questions():
     try:
-        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
+        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBij)m5k9/pub?output=csv"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -42,6 +42,7 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
+        # TTL=0 keshni o'chiradi, jadval bo'sh bo'lsa xato bermasligi uchun try-except ichida
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -52,7 +53,7 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # 1. Yangi qator yaratish (Ma'lumot turlarini aniq ko'rsatamiz)
+        # 1. Yangi qator yaratish
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
@@ -62,22 +63,22 @@ def background_tasks(name, subject, corrects, total, ball):
             "Ball (%)": f"{ball}%"
         }])
         
-        # 2. Mavjud ma'lumotni o'qish
-        existing_df = conn.read(worksheet="Results", ttl=0)
-        
-        # 3. Jadvalni yangilash mantig'i
-        if existing_df is not None and not existing_df.empty:
-            # Ustun nomlaridagi bo'shliqlarni tozalaymiz
-            existing_df.columns = [str(c).strip() for c in existing_df.columns]
-            updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        else:
+        # 2. Mavjud ma'lumotni o'qish (Agar bo'sh bo'lsa None yoki xato qaytadi)
+        try:
+            existing_df = conn.read(worksheet="Results", ttl=0)
+            if existing_df is not None and not existing_df.empty:
+                existing_df.columns = [str(c).strip() for c in existing_df.columns]
+                updated_df = pd.concat([existing_df, new_row], ignore_index=True)
+            else:
+                updated_df = new_row
+        except:
+            # Agar worksheet bo'sh bo'lsa yoki topilmasa
             updated_df = new_row
             
-        # 4. GSheets-ga yozish
+        # 3. GSheets-ga yozish
         conn.update(worksheet="Results", data=updated_df)
     except Exception as e:
-        # Xatoni logga chiqarish (agar kerak bo'lsa)
-        print(f"GSheets error: {e}")
+        st.error(f"Jadvalga saqlashda xato: {e}")
 
     # Telegramga xabar
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -141,9 +142,14 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
+        # TTL=0 bilan oxirgi ma'lumotni o'qiymiz
         res_df = conn.read(worksheet="Results", ttl=0)
-        st.dataframe(res_df, use_container_width=True)
-    except: st.error("Natijalarni yuklab bo'lmadi.")
+        if res_df is not None and not res_df.empty:
+            st.dataframe(res_df, use_container_width=True)
+        else:
+            st.info("Hozircha natijalar yo'q.")
+    except Exception as e: 
+        st.error(f"Ma'lumot o'qishda xato: {e}")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
@@ -186,7 +192,7 @@ elif st.session_state.page == "TEST":
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
                 
-                # NATIJANI SAQLASH (Spinner bilan foydalanuvchiga jarayonni ko'rsatamiz)
+                # NATIJA SAQLASH
                 with st.spinner("Natija saqlanmoqda..."):
                     background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 
