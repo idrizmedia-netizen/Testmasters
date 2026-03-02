@@ -41,7 +41,7 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
@@ -59,9 +59,10 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        # Worksheet nomi 'Results' bo'lishi shart
+        existing_df = conn.read(worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
+        conn.update(worksheet="Results", data=updated_df)
     except: pass
 
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -87,32 +88,24 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER (JS BILAN TUZATILGAN) ---
-def show_html_timer():
+# --- 4. TAYMER (BARQAROR VARIANT) ---
+def show_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
         remaining = max(0, int(st.session_state.total_time - elapsed))
         
-        timer_html = f"""
-        <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center; margin-bottom: 20px;">
-            <h1 id="countdown" style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">00:00</h1>
+        # Taymer dizayni
+        st.sidebar.markdown(f"""
+        <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center;">
+            <h1 style="color:#00C9FF; margin:0; font-size:40px;">{remaining//60:02d}:{remaining%60:02d}</h1>
             <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
         </div>
-        <script>
-            var seconds = {remaining};
-            var timerDisplay = document.getElementById("countdown");
-            var x = setInterval(function() {{
-                var m = Math.floor(seconds / 60);
-                var s = seconds % 60;
-                timerDisplay.innerHTML = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
-                if (seconds <= 0) {{
-                    clearInterval(x);
-                }}
-                seconds--;
-            }}, 1000);
-        </script>
-        """
-        st.sidebar.markdown(timer_html, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+        
+        if remaining <= 0:
+            st.error("Vaqt tugadi!")
+            st.session_state.page = "HOME"
+            st.rerun()
 
 # --- 5. SESSION STATE ---
 if 'page' not in st.session_state: st.session_state.page = "HOME"
@@ -134,9 +127,10 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
+        # GSheets orqali o'qish
+        res_df = conn.read(worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
-    except: st.error("Natijalarni yuklab bo'lmadi.")
+    except: st.error("Natijalarni yuklab bo'lmadi. 'Results' varag'i mavjudligini tekshiring.")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
@@ -151,35 +145,36 @@ elif st.session_state.page == "RESULT":
 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
-    show_html_timer()
+    show_timer()
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
-    # st.form o'rniga oddiy qism (qotib qolmasligi uchun)
-    user_answers = {}
-    for i, item in enumerate(st.session_state.test_items):
-        st.markdown(f"**{i+1}. {item['q']}**")
-        if item.get('image') and str(item['image']) != 'nan':
-            st.image(item['image'])
-        user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
-        st.markdown("---")
+    # st.form ichida radio buttonlar sahifani qayta yuklamaydi (Taymer to'xtamaydi)
+    with st.form(key="quiz_form"):
+        user_answers = {}
+        for i, item in enumerate(st.session_state.test_items):
+            st.markdown(f"**{i+1}. {item['q']}**")
+            if item.get('image') and str(item['image']) != 'nan':
+                st.image(item['image'])
+            user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
+            st.markdown("---")
             
-    if st.button("🏁 TESTNI TUGATISH"):
-        if None in user_answers.values():
-            st.error("⚠️ Barcha savollarni belgilang!")
-        else:
-            corrects = 0
-            logs = []
-            for i, item in enumerate(st.session_state.test_items):
-                db_ans_key = str(item['c']).strip().upper()
-                correct_text = item['map'].get(db_ans_key, str(item['c']))
-                is_right = str(user_answers[i]).lower() == str(correct_text).lower()
-                if is_right: corrects += 1
-                logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_right})
-            
-            ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-            st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
-            threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
-            st.rerun()
+        if st.form_submit_button("🏁 TESTNI TUGATISH"):
+            if None in user_answers.values():
+                st.error("⚠️ Barcha savollarni belgilang!")
+            else:
+                corrects = 0
+                logs = []
+                for i, item in enumerate(st.session_state.test_items):
+                    db_ans_key = str(item['c']).strip().upper()
+                    correct_text = item['map'].get(db_ans_key, str(item['c']))
+                    is_right = str(user_answers[i]).lower() == str(correct_text).lower()
+                    if is_right: corrects += 1
+                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_right})
+                
+                ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
+                st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
+                threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
+                st.rerun()
 
 elif st.session_state.page == "HOME":
     apply_styles()
