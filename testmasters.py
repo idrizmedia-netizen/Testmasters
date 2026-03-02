@@ -56,23 +56,29 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-@st.cache_data(ttl=0) # Keshni o'chirib, har safar yangi ma'lumotni o'qiymiz
+@st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Jadvalni o'qish (shunchaki worksheet nomi bilan)
+        # worksheet nomini aniq ko'rsatamiz
         df = conn.read(worksheet="Questions", ttl=0) 
         
         if df is None or df.empty:
             return None
         
-        # Sarlavhalarni tozalash
+        # Ustun nomlaridagi bo'shliqlarni tozalash
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Kerakli ustunlar mavjudligini tekshirish
+        # Kerakli ustunlar borligini tekshirish
         required = {"Fan", "Savol", "A", "B", "C", "D", "Javob"}
         if not required.issubset(set(df.columns)):
-            st.error(f"Ustunlar topilmadi. Jadvalingizdagi ustunlar: {list(df.columns)}")
+            st.error(f"Xato! Jadvalda mana bu ustunlar bo'lishi shart: {required}")
             return None
+            
+        return df.dropna(subset=["Fan", "Savol"])
+    except Exception as e:
+        # Agar bu yerda xato chiqsa, demak Secrets-dagi ID hali ham noto'g'ri
+        st.error(f"Google Sheets bilan aloqa bog'lanmadi: {e}")
+        return None
             
         return df.dropna(subset=["Fan", "Savol"], how="any")
     except Exception as e:
