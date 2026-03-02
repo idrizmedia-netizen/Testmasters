@@ -26,9 +26,10 @@ except Exception as e:
 def check_already_finished(name, subject):
     """Foydalanuvchi avval topshirganini tekshirish"""
     try:
-        df = conn.read(worksheet="Results", ttl=0)
+        # worksheet va spreadsheetni aniq ko'rsatib o'qiymiz
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
         if df is not None and not df.empty:
-            # Ustun nomlarini tozalash
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
             return len(exists) > 0
@@ -46,9 +47,10 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        existing_df = conn.read(worksheet="Results", ttl=0)
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        existing_df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(worksheet="Results", data=updated_df)
+        conn.update(spreadsheet=sheet_url, worksheet="Results", data=updated_df)
     except: pass
 
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -59,8 +61,9 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # worksheet nomini aniq ko'rsatamiz
-        df = conn.read(worksheet="Questions", ttl=0) 
+        # spreadsheet manzilini Secrets-dan aniq olamiz (Bad Request oldini olish uchun)
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        df = conn.read(spreadsheet=sheet_url, worksheet="Questions", ttl=0) 
         
         if df is None or df.empty:
             return None
@@ -76,14 +79,9 @@ def load_questions():
             
         return df.dropna(subset=["Fan", "Savol"])
     except Exception as e:
-        # Agar bu yerda xato chiqsa, demak Secrets-dagi ID hali ham noto'g'ri
         st.error(f"Google Sheets bilan aloqa bog'lanmadi: {e}")
         return None
-            
-        return df.dropna(subset=["Fan", "Savol"], how="any")
-    except Exception as e:
-        st.error(f"Xatolik: {e}")
-        return None
+
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
@@ -140,7 +138,8 @@ if st.session_state.page == "ADMIN":
         st.session_state.page = "HOME"; st.rerun()
     
     try:
-        res_df = conn.read(worksheet="Results", ttl=0)
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        res_df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
     except: st.error("Natijalarni yuklab bo'lmadi.")
 
