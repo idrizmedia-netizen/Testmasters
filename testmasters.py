@@ -58,28 +58,19 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-@st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Secrets-dan linkni olamiz
-        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Faqat spreadsheet ID orqali bog'lanamiz
+        # Link: https://docs.google.com/spreadsheets/d/ID_SHU_YERDA
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(ttl=0) # Hech qanday argumentlarsiz o'qiymiz
         
-        # Diqqat: worksheet nomini yozmaymiz! 
-        # Shunchaki jadvalni o'qiymiz, u avtomatik 1-varaqni oladi.
-        df = conn.read(spreadsheet=url, ttl=0)
-        
-        if df is not None and not df.empty:
-            # Ustun nomlarini tozalash
+        if df is not None:
             df.columns = [str(c).strip() for c in df.columns]
-            
-            # Tekshiramiz: agar 'Fan' ustuni bo'lsa, demak hammasi ok
-            if "Fan" in df.columns:
-                return df.dropna(subset=["Fan", "Savol"])
-            else:
-                st.error(f"Xato: 1-varaqda 'Fan' ustuni topilmadi. Ustunlar: {list(df.columns)}")
+            return df
         return None
     except Exception as e:
-        st.error(f"Xato turi: {e}")
+        st.error(f"Xato: {e}")
         return None
         
 def apply_styles(subject="Default"):
