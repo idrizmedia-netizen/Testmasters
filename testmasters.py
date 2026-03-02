@@ -27,27 +27,26 @@ except Exception as e:
 
 def load_questions():
     try:
-        # 1. Secretsdan linkni olamiz
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Nashr qilingan CSV link (sizning linkiningiz asosida)
+        # Oxirini /pubhtml dan /pub?output=csv ga o'zgartiramiz
+        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
         
-        # 2. Jadvalni o'qiymiz (Hech qanday worksheet nomi yozmaymiz!)
-        # Bu usul har doim 1-o'rinda turgan varaqni o'qiydi.
-        df = conn.read(spreadsheet=sheet_url, ttl=0)
+        # To'g'ridan-to'g'ri pandas orqali o'qiymiz
+        df = pd.read_csv(csv_url)
         
         if df is not None and not df.empty:
             # Ustun nomlarini tozalash
             df.columns = [str(c).strip() for c in df.columns]
             
-            # Tekshiruv: "Fan" ustuni bormi?
+            # "Fan" ustuni borligini tekshiramiz
             if "Fan" in df.columns:
                 return df
             else:
-                st.error(f"Xato: Birinchi varaqda 'Fan' ustuni yo'q. Mavjud ustunlar: {list(df.columns)}")
+                st.error(f"Xato: Jadvalda 'Fan' ustuni topilmadi. Mavjud ustunlar: {list(df.columns)}")
         return None
     except Exception as e:
-        st.error(f"Google API xatosi: {e}")
+        st.error(f"Ma'lumot o'qishda xatolik: {e}")
         return None
-
 def check_already_finished(name, subject):
     """Foydalanuvchi avval topshirganini tekshirish"""
     try:
