@@ -16,7 +16,6 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    # Ulanishni yaratish - URL'ni secrets'dan aniq olamiz
     SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
@@ -88,7 +87,7 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER (HTML + JS VARIANT) ---
+# --- 4. TAYMER (JS BILAN TUZATILGAN) ---
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
@@ -101,10 +100,11 @@ def show_html_timer():
         </div>
         <script>
             var seconds = {remaining};
+            var timerDisplay = document.getElementById("countdown");
             var x = setInterval(function() {{
                 var m = Math.floor(seconds / 60);
                 var s = seconds % 60;
-                document.getElementById("countdown").innerHTML = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+                timerDisplay.innerHTML = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
                 if (seconds <= 0) {{
                     clearInterval(x);
                 }}
@@ -151,35 +151,35 @@ elif st.session_state.page == "RESULT":
 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
-    show_html_timer() # HTML taymerni chaqiramiz
+    show_html_timer()
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
     
-    with st.form(key="quiz_form"):
-        user_answers = {}
-        for i, item in enumerate(st.session_state.test_items):
-            st.markdown(f"**{i+1}. {item['q']}**")
-            if item.get('image') and str(item['image']) != 'nan':
-                st.image(item['image'])
-            user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
-            st.markdown("---")
+    # st.form o'rniga oddiy qism (qotib qolmasligi uchun)
+    user_answers = {}
+    for i, item in enumerate(st.session_state.test_items):
+        st.markdown(f"**{i+1}. {item['q']}**")
+        if item.get('image') and str(item['image']) != 'nan':
+            st.image(item['image'])
+        user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
+        st.markdown("---")
             
-        if st.form_submit_button("🏁 TESTNI TUGATISH"):
-            if None in user_answers.values():
-                st.error("⚠️ Barcha savollarni belgilang!")
-            else:
-                corrects = 0
-                logs = []
-                for i, item in enumerate(st.session_state.test_items):
-                    db_ans_key = str(item['c']).strip().upper()
-                    correct_text = item['map'].get(db_ans_key, str(item['c']))
-                    is_right = str(user_answers[i]).lower() == str(correct_text).lower()
-                    if is_right: corrects += 1
-                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_right})
-                
-                ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-                st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
-                threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
-                st.rerun()
+    if st.button("🏁 TESTNI TUGATISH"):
+        if None in user_answers.values():
+            st.error("⚠️ Barcha savollarni belgilang!")
+        else:
+            corrects = 0
+            logs = []
+            for i, item in enumerate(st.session_state.test_items):
+                db_ans_key = str(item['c']).strip().upper()
+                correct_text = item['map'].get(db_ans_key, str(item['c']))
+                is_right = str(user_answers[i]).lower() == str(correct_text).lower()
+                if is_right: corrects += 1
+                logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_right})
+            
+            ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
+            st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
+            threading.Thread(target=background_tasks, args=(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)).start()
+            st.rerun()
 
 elif st.session_state.page == "HOME":
     apply_styles()
