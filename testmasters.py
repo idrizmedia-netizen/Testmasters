@@ -15,7 +15,9 @@ try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
-    # Ulanishni yaratish
+    
+    # Ulanishni yaratish - URL'ni secrets'dan aniq olamiz
+    SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Sozlamalarda xatolik: {e}")
@@ -23,12 +25,32 @@ except Exception as e:
 
 # --- 3. YORDAMCHI FUNKSIYALAR ---
 
+def load_questions():
+    """Savollarni o'qish - eng xatosiz variant"""
+    try:
+        # Hech qanday worksheet nomi yozmaymiz, shunda 404 xatosi chiqmaydi.
+        # U avtomatik ravishda jadvalning BIRINCHI varog'ini o'qiydi.
+        df = conn.read(spreadsheet=SHEET_URL, ttl=0) 
+        
+        if df is not None and not df.empty:
+            # Ustun nomlaridagi bo'shliqlarni tozalash
+            df.columns = [str(c).strip() for c in df.columns]
+            
+            # Tekshiruv: Fan ustuni bormi?
+            if "Fan" in df.columns:
+                return df
+            else:
+                st.error(f"Xato: 1-varaqda 'Fan' ustuni topilmadi. Mavjud ustunlar: {list(df.columns)}")
+        return None
+    except Exception as e:
+        st.error(f"Google bilan aloqa uzildi: {e}")
+        return None
+
 def check_already_finished(name, subject):
     """Foydalanuvchi avval topshirganini tekshirish"""
     try:
-        # worksheet va spreadsheetni aniq ko'rsatib o'qiymiz
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
+        # Natijalarni o'qishda worksheet nomini aniq ko'rsatamiz
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
@@ -47,10 +69,11 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        existing_df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
+        
+        # Mavjud natijalarni o'qib, yangisini qo'shamiz
+        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(spreadsheet=sheet_url, worksheet="Results", data=updated_df)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
     except: pass
 
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -58,21 +81,6 @@ def background_tasks(name, subject, corrects, total, ball):
     try: requests.post(url, json={"chat_id": CHAT_ID, "text": text})
     except: pass
 
-def load_questions():
-    try:
-        # Faqat spreadsheet ID orqali bog'lanamiz
-        # Link: https://docs.google.com/spreadsheets/d/ID_SHU_YERDA
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl=0) # Hech qanday argumentlarsiz o'qiymiz
-        
-        if df is not None:
-            df.columns = [str(c).strip() for c in df.columns]
-            return df
-        return None
-    except Exception as e:
-        st.error(f"Xato: {e}")
-        return None
-        
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
@@ -129,8 +137,7 @@ if st.session_state.page == "ADMIN":
         st.session_state.page = "HOME"; st.rerun()
     
     try:
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        res_df = conn.read(spreadsheet=sheet_url, worksheet="Results", ttl=0)
+        res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
     except: st.error("Natijalarni yuklab bo'lmadi.")
 
@@ -214,5 +221,3 @@ elif st.session_state.page == "HOME":
                         "start_time": time.time(), "page": "TEST"
                     })
                     st.rerun()
-    else:
-        st.warning("⚠️ Fanlar yuklanmadi. Jadvalda 'Questions' varog'i va 'Fan' ustuni borligini tekshiring.")
