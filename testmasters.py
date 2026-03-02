@@ -61,22 +61,28 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Spreadsheet linkini secretsdan olamiz
-        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Spreadsheet URL'ni aniq ko'rsatamiz
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         
-        # Diqqat: Bu yerda worksheet nomini olib tashlab ko'ramiz
-        # Agar Questions varag'i jadvalda BIRINCHI bo'lib turgan bo'lsa, 
-        # u avtomatik ravishda o'sha yerdan o'qiydi
-        df = conn.read(spreadsheet=url, ttl=0) 
+        # Diqqat: worksheet nomini olib tashlaymiz, 
+        # u avtomatik ravishda birinchi varaqni o'qiydi
+        df = conn.read(spreadsheet=sheet_url, ttl=0)
         
-        if df is not None and not df.empty:
-            # Ustunlarni tozalash
-            df.columns = [str(c).strip() for c in df.columns]
-            # Agar sizda bir nechta varaq bo'lsa, fan bo'yicha filtrlaymiz
-            return df
-        return None
+        if df is None or df.empty:
+            st.error("Jadval bo'sh yoki o'qib bo'lmadi.")
+            return None
+        
+        # Ustun nomlaridagi bo'shliqlarni tozalash
+        df.columns = [str(c).strip() for c in df.columns]
+        
+        # "Fan" va "Savol" ustunlari borligini tekshirish
+        if "Fan" not in df.columns or "Savol" not in df.columns:
+            st.error(f"Xato! Jadvalda 'Fan' va 'Savol' ustunlari topilmadi. Mavjud ustunlar: {list(df.columns)}")
+            return None
+            
+        return df.dropna(subset=["Fan", "Savol"])
     except Exception as e:
-        st.error(f"Google bilan aloqa uzildi: {e}")
+        st.error(f"Ma'lumot o'qishda xatolik: {e}")
         return None
         
 def apply_styles(subject="Default"):
