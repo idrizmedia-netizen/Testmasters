@@ -27,7 +27,7 @@ except Exception as e:
 
 def load_questions():
     try:
-        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBij)m5k9/pub?output=csv"
+        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -42,7 +42,6 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # TTL=0 keshni o'chiradi, jadval bo'sh bo'lsa xato bermasligi uchun try-except ichida
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -63,7 +62,7 @@ def background_tasks(name, subject, corrects, total, ball):
             "Ball (%)": f"{ball}%"
         }])
         
-        # 2. Mavjud ma'lumotni o'qish (Agar bo'sh bo'lsa None yoki xato qaytadi)
+        # 2. Mavjud ma'lumotni o'qish va birlashtirish
         try:
             existing_df = conn.read(worksheet="Results", ttl=0)
             if existing_df is not None and not existing_df.empty:
@@ -72,13 +71,12 @@ def background_tasks(name, subject, corrects, total, ball):
             else:
                 updated_df = new_row
         except:
-            # Agar worksheet bo'sh bo'lsa yoki topilmasa
             updated_df = new_row
             
         # 3. GSheets-ga yozish
         conn.update(worksheet="Results", data=updated_df)
     except Exception as e:
-        st.error(f"Jadvalga saqlashda xato: {e}")
+        print(f"GSheets error: {e}")
 
     # Telegramga xabar
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -142,7 +140,6 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # TTL=0 bilan oxirgi ma'lumotni o'qiymiz
         res_df = conn.read(worksheet="Results", ttl=0)
         if res_df is not None and not res_df.empty:
             st.dataframe(res_df, use_container_width=True)
