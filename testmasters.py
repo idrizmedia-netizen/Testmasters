@@ -26,24 +26,26 @@ except Exception as e:
 # --- 3. YORDAMCHI FUNKSIYALAR ---
 
 def load_questions():
-    """Savollarni o'qish - eng xatosiz variant"""
     try:
-        # Hech qanday worksheet nomi yozmaymiz, shunda 404 xatosi chiqmaydi.
-        # U avtomatik ravishda jadvalning BIRINCHI varog'ini o'qiydi.
-        df = conn.read(spreadsheet=SHEET_URL, ttl=0) 
+        # 1. Secretsdan linkni olamiz
+        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        
+        # 2. Jadvalni o'qiymiz (Hech qanday worksheet nomi yozmaymiz!)
+        # Bu usul har doim 1-o'rinda turgan varaqni o'qiydi.
+        df = conn.read(spreadsheet=sheet_url, ttl=0)
         
         if df is not None and not df.empty:
-            # Ustun nomlaridagi bo'shliqlarni tozalash
+            # Ustun nomlarini tozalash
             df.columns = [str(c).strip() for c in df.columns]
             
-            # Tekshiruv: Fan ustuni bormi?
+            # Tekshiruv: "Fan" ustuni bormi?
             if "Fan" in df.columns:
                 return df
             else:
-                st.error(f"Xato: 1-varaqda 'Fan' ustuni topilmadi. Mavjud ustunlar: {list(df.columns)}")
+                st.error(f"Xato: Birinchi varaqda 'Fan' ustuni yo'q. Mavjud ustunlar: {list(df.columns)}")
         return None
     except Exception as e:
-        st.error(f"Google bilan aloqa uzildi: {e}")
+        st.error(f"Google API xatosi: {e}")
         return None
 
 def check_already_finished(name, subject):
