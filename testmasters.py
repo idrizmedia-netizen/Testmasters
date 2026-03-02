@@ -61,27 +61,25 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Spreadsheet URL-ni olamiz
+        # Secrets-dan linkni olamiz
         url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         
-        # Diqqat! worksheet="Questions" deb yozmasdan, 
-        # shunchaki jadvalni o'qiymiz. U avtomatik 1-varaqni oladi.
+        # Diqqat: worksheet nomini yozmaymiz! 
+        # Shunchaki jadvalni o'qiymiz, u avtomatik 1-varaqni oladi.
         df = conn.read(spreadsheet=url, ttl=0)
         
-        if df is None or df.empty:
-            return None
+        if df is not None and not df.empty:
+            # Ustun nomlarini tozalash
+            df.columns = [str(c).strip() for c in df.columns]
             
-        # Ustun nomlarini tozalash
-        df.columns = [str(c).strip() for c in df.columns]
-        
-        # Agar 1-varaqda 'Fan' topilmasa, xatoni aniq ko'rsatamiz
-        if "Fan" not in df.columns:
-            st.error(f"Xato: 1-varaqda 'Fan' ustuni yo'q. Ustunlar: {list(df.columns)}")
-            return None
-            
-        return df.dropna(subset=["Fan", "Savol"])
+            # Tekshiramiz: agar 'Fan' ustuni bo'lsa, demak hammasi ok
+            if "Fan" in df.columns:
+                return df.dropna(subset=["Fan", "Savol"])
+            else:
+                st.error(f"Xato: 1-varaqda 'Fan' ustuni topilmadi. Ustunlar: {list(df.columns)}")
+        return None
     except Exception as e:
-        st.error(f"Google API xatosi: {e}")
+        st.error(f"Xato turi: {e}")
         return None
         
 def apply_styles(subject="Default"):
