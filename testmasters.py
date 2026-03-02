@@ -52,26 +52,32 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # Yangi qator
+        # 1. Yangi qator yaratish (Ma'lumot turlarini aniq ko'rsatamiz)
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Ism-familiya": name,
-            "Fan": subject,
-            "To'g'ri": corrects,
-            "Xato": total - corrects,
+            "Ism-familiya": str(name),
+            "Fan": str(subject),
+            "To'g'ri": int(corrects),
+            "Xato": int(total - corrects),
             "Ball (%)": f"{ball}%"
         }])
         
-        # Ma'lumotni o'qish va qo'shish
+        # 2. Mavjud ma'lumotni o'qish
         existing_df = conn.read(worksheet="Results", ttl=0)
-        if existing_df is not None:
+        
+        # 3. Jadvalni yangilash mantig'i
+        if existing_df is not None and not existing_df.empty:
+            # Ustun nomlaridagi bo'shliqlarni tozalaymiz
+            existing_df.columns = [str(c).strip() for c in existing_df.columns]
             updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         else:
             updated_df = new_row
             
+        # 4. GSheets-ga yozish
         conn.update(worksheet="Results", data=updated_df)
     except Exception as e:
-        pass # Backgroundda xato bo'lsa foydalanuvchiga ko'rinmaydi
+        # Xatoni logga chiqarish (agar kerak bo'lsa)
+        print(f"GSheets error: {e}")
 
     # Telegramga xabar
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -180,8 +186,10 @@ elif st.session_state.page == "TEST":
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
                 
-                # DIQQAT: Thread'siz to'g'ridan-to'g'ri chaqiramiz (ishonchliroq)
-                background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                # NATIJANI SAQLASH (Spinner bilan foydalanuvchiga jarayonni ko'rsatamiz)
+                with st.spinner("Natija saqlanmoqda..."):
+                    background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                
                 st.rerun()
 
 elif st.session_state.page == "HOME":
