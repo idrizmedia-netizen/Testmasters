@@ -61,25 +61,18 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # spreadsheet manzilini Secrets-dan aniq olamiz (Bad Request oldini olish uchun)
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
-        df = conn.read(spreadsheet=sheet_url, worksheet="Questions", ttl=0) 
+        # Secrets-dan linkni aniq ko'rsatib o'qiymiz
+        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Bad Request'ni oldini olish uchun spreadsheet argumentini qo'shamiz
+        df = conn.read(spreadsheet=url, worksheet="Questions", ttl=0)
         
-        if df is None or df.empty:
-            return None
-        
-        # Ustun nomlaridagi bo'shliqlarni tozalash
-        df.columns = [str(c).strip() for c in df.columns]
-        
-        # Kerakli ustunlar borligini tekshirish
-        required = {"Fan", "Savol", "A", "B", "C", "D", "Javob"}
-        if not required.issubset(set(df.columns)):
-            st.error(f"Xato! Jadvalda mana bu ustunlar bo'lishi shart: {required}")
-            return None
-            
-        return df.dropna(subset=["Fan", "Savol"])
+        if df is not None and not df.empty:
+            df.columns = [str(c).strip() for c in df.columns]
+            return df
+        return None
     except Exception as e:
-        st.error(f"Google Sheets bilan aloqa bog'lanmadi: {e}")
+        # Xatoni aynan nimaligini ekranda ko'rish uchun:
+        st.error(f"Google bilan aloqa uzildi: {e}")
         return None
 
 def apply_styles(subject="Default"):
