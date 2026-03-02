@@ -16,7 +16,7 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    # SHEET_URL ni secrets dan olamiz, lekin ulanishda connection ismlarini tekshiramiz
+    # SHEET_URL ni secrets dan olamiz
     SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
@@ -42,8 +42,8 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # worksheet parametrini aniq ko'rsatamiz
-        df = conn.read(worksheet="Results", ttl=0)
+        # spreadsheet ID orqali aniq murojaat qilamiz
+        df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
@@ -61,10 +61,10 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        # Worksheet nomi 'Results' bo'lishi shart
-        existing_df = conn.read(worksheet="Results", ttl=0)
+        # Worksheet va spreadsheet ID ni aniq ko'rsatish 404 xatosini oldini oladi
+        existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-        conn.update(worksheet="Results", data=updated_df)
+        conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
     except: pass
 
     text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
@@ -90,42 +90,22 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER (AVTOMAT YANGILANADIGAN JS VARIANT) ---
+# --- 4. TAYMER (PYTHON + JS MIX) ---
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         elapsed = time.time() - st.session_state.start_time
         remaining = max(0, int(st.session_state.total_time - elapsed))
         
-        # Taymer dizayni va Streamlit rerun triggeri qo'shildi
-        timer_html = f"""
+        # Taymerni sidebar'ga chiqaramiz va har 1 soniyada yangilanishini ta'minlaymiz
+        st.sidebar.markdown(f"""
         <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center; margin-bottom: 20px;">
-            <h1 id="countdown" style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">00:00</h1>
+            <h1 id="countdown" style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">{remaining//60:02d}:{remaining%60:02d}</h1>
             <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
         </div>
-        <script>
-            function updateTimer() {{
-                var now = Math.floor(Date.now() / 1000);
-                var start = {int(st.session_state.start_time)};
-                var total = {int(st.session_state.total_time)};
-                var remaining = total - (now - start);
-                
-                if (remaining <= 0) {{
-                    document.getElementById("countdown").innerHTML = "00:00";
-                    return;
-                }}
-                
-                var m = Math.floor(remaining / 60);
-                var s = remaining % 60;
-                document.getElementById("countdown").innerHTML = (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
-            }}
-            setInterval(updateTimer, 1000);
-            updateTimer();
-        </script>
-        """
-        st.sidebar.markdown(timer_html, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
         
-        # Python vaqti bo'yicha tugatishni tekshirish
         if remaining <= 0:
+            st.error("Vaqt tugadi!")
             st.session_state.page = "HOME"
             st.rerun()
 
@@ -149,8 +129,8 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # worksheet nomini aniq yozamiz
-        res_df = conn.read(worksheet="Results", ttl=0)
+        # worksheet va spreadsheetni aniq ko'rsatamiz
+        res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
     except: st.error("Natijalarni yuklab bo'lmadi. 'Results' varag'i mavjudligini tekshiring.")
 
