@@ -61,30 +61,27 @@ def background_tasks(name, subject, corrects, total, ball):
 @st.cache_data(ttl=0)
 def load_questions():
     try:
-        # Secrets-dan linkni olamiz
-        sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Spreadsheet URL-ni olamiz
+        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
         
-        # Diqqat: Bu yerda worksheet nomini yozmaymiz, 
-        # chunki u avtomatik birinchi varaqni qidiradi
-        df = conn.read(spreadsheet=sheet_url, ttl=0)
+        # Diqqat! worksheet="Questions" deb yozmasdan, 
+        # shunchaki jadvalni o'qiymiz. U avtomatik 1-varaqni oladi.
+        df = conn.read(spreadsheet=url, ttl=0)
         
         if df is None or df.empty:
-            st.error("Jadval topilmadi yoki u bo'sh.")
             return None
-        
-        # Ustun nomlarini tozalaymiz
+            
+        # Ustun nomlarini tozalash
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Agar "Fan" ustuni birinchi varaqda bo'lmasa, demak u Results'ni o'qiyapti
+        # Agar 1-varaqda 'Fan' topilmasa, xatoni aniq ko'rsatamiz
         if "Fan" not in df.columns:
-            st.warning(f"Diqqat! Birinchi varaqda 'Fan' ustuni yo'q. Mavjud ustunlar: {list(df.columns)}")
-            # Agar 'Fan' bo'lmasa, majburan "Questions" varag'ini qidiramiz
-            df = conn.read(spreadsheet=sheet_url, worksheet="Questions", ttl=0)
-            df.columns = [str(c).strip() for c in df.columns]
-
+            st.error(f"Xato: 1-varaqda 'Fan' ustuni yo'q. Ustunlar: {list(df.columns)}")
+            return None
+            
         return df.dropna(subset=["Fan", "Savol"])
     except Exception as e:
-        st.error(f"Ma'lumot o'qishda xatolik: {e}")
+        st.error(f"Google API xatosi: {e}")
         return None
         
 def apply_styles(subject="Default"):
