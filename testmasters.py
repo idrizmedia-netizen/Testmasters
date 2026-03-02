@@ -6,6 +6,7 @@ import requests
 import random
 from datetime import datetime
 import threading
+from streamlit_autorefresh import st_autorefresh # Yangilik 1
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -16,7 +17,6 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    # SHEET_URL ni secrets dan olamiz
     SHEET_URL = st.secrets["connections"]["gsheets"]["spreadsheet"]
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
@@ -42,7 +42,7 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # spreadsheet ID orqali aniq murojaat qilamiz
+        # TTL=0 keshni o'chiradi va yangi natijalarni o'qiydi
         df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -61,7 +61,6 @@ def background_tasks(name, subject, corrects, total, ball):
             "Xato": total - corrects,
             "Ball (%)": f"{ball}%"
         }])
-        # Worksheet va spreadsheet ID ni aniq ko'rsatish 404 xatosini oldini oladi
         existing_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         updated_df = pd.concat([existing_df, new_row], ignore_index=True)
         conn.update(spreadsheet=SHEET_URL, worksheet="Results", data=updated_df)
@@ -90,22 +89,23 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER (PYTHON + JS MIX) ---
+# --- 4. TAYMER (AVTOMAT YANGILANADIGAN) ---
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
+        # Sahifani har 1 soniyada "turtib" turadi, shunda taymer o'zgaradi
+        st_autorefresh(interval=1000, key="timer_refresh")
+        
         elapsed = time.time() - st.session_state.start_time
         remaining = max(0, int(st.session_state.total_time - elapsed))
         
-        # Taymerni sidebar'ga chiqaramiz va har 1 soniyada yangilanishini ta'minlaymiz
         st.sidebar.markdown(f"""
         <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center; margin-bottom: 20px;">
-            <h1 id="countdown" style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">{remaining//60:02d}:{remaining%60:02d}</h1>
+            <h1 style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">{remaining//60:02d}:{remaining%60:02d}</h1>
             <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
         </div>
         """, unsafe_allow_html=True)
         
         if remaining <= 0:
-            st.error("Vaqt tugadi!")
             st.session_state.page = "HOME"
             st.rerun()
 
@@ -129,10 +129,10 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # worksheet va spreadsheetni aniq ko'rsatamiz
+        # ttl=0 natijalarni har doim yangi ko'rsatadi
         res_df = conn.read(spreadsheet=SHEET_URL, worksheet="Results", ttl=0)
         st.dataframe(res_df, use_container_width=True)
-    except: st.error("Natijalarni yuklab bo'lmadi. 'Results' varag'i mavjudligini tekshiring.")
+    except: st.error("Natijalarni yuklab bo'lmadi.")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
