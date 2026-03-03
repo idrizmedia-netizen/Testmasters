@@ -42,6 +42,7 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
+        # TTL=0 keshni o'chirib, har doim yangi natijalarni tekshiradi
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -52,7 +53,7 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # 1. Yangi qator ma'lumotlarini tayyorlash
+        # 1. Yangi qator tayyorlash
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
@@ -62,33 +63,29 @@ def background_tasks(name, subject, corrects, total, ball):
             "Ball (%)": f"{ball}%"
         }])
         
-        # 2. Results varag'ini o'qish (TTL=0 keshni o'chiradi)
-        # DIQQAT: GSheets'dagi varaq nomi aynan "Results" bo'lishi shart!
+        # 2. Results varag'ini o'qish va yangilash
         try:
+            # TTL=0 keshni tozalash uchun juda muhim
             existing_df = conn.read(worksheet="Results", ttl=0)
             if existing_df is not None and not existing_df.empty:
-                # Ustun nomlarini koddagi bilan moslash (bo'shliqlarni olib tashlash)
                 existing_df.columns = [str(c).strip() for c in existing_df.columns]
                 updated_df = pd.concat([existing_df, new_row], ignore_index=True)
             else:
                 updated_df = new_row
         except Exception:
-            # Agar varaq bo'sh bo'lsa yoki hali birorta qator bo'lmasa
             updated_df = new_row
             
-        # 3. Jadvalga qayta yozish (Update)
+        # 3. Jadvalga yozish
         conn.update(worksheet="Results", data=updated_df)
-        print("Muvaffaqiyatli saqlandi!")
         
     except Exception as e:
-        # Xatoni ekranda ko'rish uchun (faqat tekshirish vaqtida)
-        st.error(f"GSheets'ga yozishda xatolik yuz berdi: {e}")
+        st.error(f"Natijani saqlashda texnik xatolik: {e}")
 
-    # Telegram xabar (bu qismi ishlayotgan bo'lsa tegmang)
+    # Telegram xabar
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": CHAT_ID, "text": text})
+        requests.post(url, json={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except:
         pass
 
@@ -148,13 +145,14 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
+        # TTL=0 keshni tozalab, natijalarni yangi holatda o'qiydi
         res_df = conn.read(worksheet="Results", ttl=0)
         if res_df is not None and not res_df.empty:
             st.dataframe(res_df, use_container_width=True)
         else:
             st.info("Hozircha natijalar yo'q.")
     except Exception as e: 
-        st.error(f"Ma'lumot o'qishda xato: {e}")
+        st.error(f"Admin panelda ma'lumot yuklashda xato (400/404): {e}")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
