@@ -138,17 +138,29 @@ if st.session_state.page == "ADMIN":
     st.title("📊 Natijalar (Admin)")
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
+    
     try:
-        # MUHIM: 400 Error xatosini oldini olish uchun to'g'ridan-to'g'ri o'qish
-        res_df = conn.read(worksheet="Results", ttl=0)
+        # Barcha varaqlar ro'yxatini olish (xatolikni oldini olish uchun)
+        all_sheets = conn.list_sheets() if hasattr(conn, 'list_sheets') else ["Results"]
+        
+        # 'Results' so'zi qatnashgan varaqni qidirish
+        target_sheet = "Results"
+        for s in all_sheets:
+            if "Results" in s:
+                target_sheet = s
+                break
+        
+        res_df = conn.read(worksheet=target_sheet, ttl=0)
+        
         if res_df is not None and not res_df.empty:
-            # Bo'sh qatorlarni tozalash
             res_df = res_df.dropna(how='all')
             st.dataframe(res_df, use_container_width=True)
         else:
-            st.info("Hozircha natijalar yo'q.")
-    except Exception as e: 
-        st.error("Natijalarni yuklab bo'lmadi. Varaq nomi 'Results' ekanligini tekshiring.")
+            st.info("Hozircha natijalar yo'q. Jadval bo'sh.")
+            
+    except Exception as e:
+        st.error(f"Ulanishda xato: {e}")
+        st.info("Maslahat: Google Sheets-dagi varaq nomi aynan 'Results' ekanligini tekshiring.")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
