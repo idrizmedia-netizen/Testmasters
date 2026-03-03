@@ -42,18 +42,17 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # TTL=0 keshni o'chirib, har doim yangi natijalarni tekshiradi
+        # 400 xatosini oldini olish uchun barqaror o'qish
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
-            exists = df[(df['Ism-familiya'] == name) & (df['Fan'] == subject)]
+            exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject))]
             return len(exists) > 0
     except: return False
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # 1. Yangi qator tayyorlash
         new_row = pd.DataFrame([{
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
@@ -63,31 +62,26 @@ def background_tasks(name, subject, corrects, total, ball):
             "Ball (%)": f"{ball}%"
         }])
         
-        # 2. Results varag'ini o'qish va yangilash
         try:
-            # TTL=0 keshni tozalash uchun juda muhim
+            # Ma'lumot qo'shishda xatolik chiqmasligi uchun keshsiz o'qish
             existing_df = conn.read(worksheet="Results", ttl=0)
             if existing_df is not None and not existing_df.empty:
                 existing_df.columns = [str(c).strip() for c in existing_df.columns]
                 updated_df = pd.concat([existing_df, new_row], ignore_index=True)
             else:
                 updated_df = new_row
-        except Exception:
+        except:
             updated_df = new_row
             
-        # 3. Jadvalga yozish
         conn.update(worksheet="Results", data=updated_df)
-        
     except Exception as e:
-        st.error(f"Natijani saqlashda texnik xatolik: {e}")
+        st.error(f"GSheets'ga yozishda xatolik: {e}")
 
-    # Telegram xabar
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": CHAT_ID, "text": text}, timeout=5)
-    except:
-        pass
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
+                      json={"chat_id": CHAT_ID, "text": text}, timeout=5)
+    except: pass
 
 def apply_styles(subject="Default"):
     bg_images = {
@@ -145,14 +139,16 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # TTL=0 keshni tozalab, natijalarni yangi holatda o'qiydi
+        # MUHIM: 400 Error xatosini oldini olish uchun to'g'ridan-to'g'ri o'qish
         res_df = conn.read(worksheet="Results", ttl=0)
         if res_df is not None and not res_df.empty:
+            # Bo'sh qatorlarni tozalash
+            res_df = res_df.dropna(how='all')
             st.dataframe(res_df, use_container_width=True)
         else:
             st.info("Hozircha natijalar yo'q.")
     except Exception as e: 
-        st.error(f"Admin panelda ma'lumot yuklashda xato (400/404): {e}")
+        st.error("Natijalarni yuklab bo'lmadi. Varaq nomi 'Results' ekanligini tekshiring.")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
@@ -183,22 +179,18 @@ elif st.session_state.page == "TEST":
             if None in user_answers.values():
                 st.error("⚠️ Barcha savollarni belgilang!")
             else:
-                corrects = 0
-                logs = []
-                for i, item in enumerate(st.session_state.test_items):
-                    db_ans_key = str(item['c']).strip().upper()
-                    correct_text = item['map'].get(db_ans_key, str(item['c']))
-                    is_right = str(user_answers[i]).lower() == str(correct_text).lower()
-                    if is_right: corrects += 1
-                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_right})
+                corrects = sum(1 for i, item in enumerate(st.session_state.test_items) 
+                               if str(user_answers[i]).lower() == str(item['map'].get(str(item['c']).strip().upper(), item['c'])).lower())
+                
+                logs = [{"question": item['q'], "user_ans": user_answers[i], 
+                         "correct": str(user_answers[i]).lower() == str(item['map'].get(str(item['c']).strip().upper(), item['c'])).lower()} 
+                        for i, item in enumerate(st.session_state.test_items)]
                 
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
                 
-                # NATIJA SAQLASH
                 with st.spinner("Natija saqlanmoqda..."):
                     background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
-                
                 st.rerun()
 
 elif st.session_state.page == "HOME":
