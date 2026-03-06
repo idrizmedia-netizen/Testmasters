@@ -54,14 +54,14 @@ def check_already_finished(name, subject):
 # YANGILANGAN VA BARQAROR FUNKSIYA
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # Yangi qator ma'lumotlari
+        # Yangi qator ma'lumotlari (Sarlavha "Ball" deb o'zgartirildi)
         new_row_data = {
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
             "Fan": str(subject),
             "To'g'ri": int(corrects),
             "Xato": int(total - corrects),
-            "Ball (%)": f"{ball}"  # Siz so'ragan format
+            "Ball": str(ball) 
         }
         
         # 1. Hozirgi natijalarni o'qish
@@ -170,7 +170,15 @@ elif st.session_state.page == "RESULT":
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            st.markdown(f'<div class="analysis-card" style="border-left-color: {border_color};"><p><b>Savol:</b> {log["question"]}</p><p style="color:{border_color};">Javobingiz: {log["user_ans"]}</p></div>', unsafe_allow_html=True)
+            # To'g'ri javobni ko'rsatish
+            correct_ans_text = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
+            st.markdown(f'''
+            <div class="analysis-card" style="border-left-color: {border_color};">
+                <p><b>Savol:</b> {log["question"]}</p>
+                <p>Sizning javobingiz: {log["user_ans"]}</p>
+                {correct_ans_text}
+            </div>
+            ''', unsafe_allow_html=True)
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
 
@@ -192,12 +200,18 @@ elif st.session_state.page == "TEST":
             if None in user_answers.values():
                 st.error("⚠️ Barcha savollarni belgilang!")
             else:
-                corrects = sum(1 for i, item in enumerate(st.session_state.test_items) 
-                               if str(user_answers[i]).lower() == str(item['map'].get(str(item['c']).strip().upper(), item['c'])).lower())
-                
-                logs = [{"question": item['q'], "user_ans": user_answers[i], 
-                         "correct": str(user_answers[i]).lower() == str(item['map'].get(str(item['c']).strip().upper(), item['c'])).lower()} 
-                        for i, item in enumerate(st.session_state.test_items)]
+                logs = []
+                corrects = 0
+                for i, item in enumerate(st.session_state.test_items):
+                    c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
+                    is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
+                    if is_correct: corrects += 1
+                    logs.append({
+                        "question": item['q'], 
+                        "user_ans": user_answers[i], 
+                        "correct": is_correct,
+                        "correct_ans": c_ans
+                    })
                 
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
