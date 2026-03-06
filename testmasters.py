@@ -20,7 +20,7 @@ try:
     # GSheets ulanishi
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
-    st.error(f"Sozlamalarda xatolik: {e}")
+    st.error(f"Sozalamalarda xatolik: {e}")
     st.stop()
 
 # --- 3. YORDAMCHI FUNKSIYALAR ---
@@ -51,32 +51,37 @@ def check_already_finished(name, subject):
     except: return False
     return False
 
+# YANGILANGAN VA BARQAROR FUNKSIYA
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        new_row = pd.DataFrame([{
+        # Yangi qator ma'lumotlari
+        new_row_data = {
             "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "Ism-familiya": str(name),
             "Fan": str(subject),
             "To'g'ri": int(corrects),
             "Xato": int(total - corrects),
-            "Ball (%)": f"{ball}%"
-        }])
+            "Ball (%)": f"{ball}"  # Siz so'ragan format
+        }
         
-        try:
-            # Ma'lumot qo'shishda xatolik chiqmasligi uchun keshsiz o'qish
-            existing_df = conn.read(worksheet="Results", ttl=0)
-            if existing_df is not None and not existing_df.empty:
-                existing_df.columns = [str(c).strip() for c in existing_df.columns]
-                updated_df = pd.concat([existing_df, new_row], ignore_index=True)
-            else:
-                updated_df = new_row
-        except:
-            updated_df = new_row
+        # 1. Hozirgi natijalarni o'qish
+        df = conn.read(worksheet="Results", ttl=0)
+        new_row_df = pd.DataFrame([new_row_data])
+        
+        # 2. Jadvalni birlashtirish
+        if df is not None:
+            df = df.dropna(how='all') # Bo'sh qatorlarni tozalash
+            updated_df = pd.concat([df, new_row_df], ignore_index=True)
+        else:
+            updated_df = new_row_df
             
+        # 3. Google Sheets'ga yuklash
         conn.update(worksheet="Results", data=updated_df)
+        
     except Exception as e:
         st.error(f"GSheets'ga yozishda xatolik: {e}")
 
+    # Telegram xabarnomasi
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
@@ -140,10 +145,7 @@ if st.session_state.page == "ADMIN":
         st.session_state.page = "HOME"; st.rerun()
     
     try:
-        # Barcha varaqlar ro'yxatini olish (xatolikni oldini olish uchun)
         all_sheets = conn.list_sheets() if hasattr(conn, 'list_sheets') else ["Results"]
-        
-        # 'Results' so'zi qatnashgan varaqni qidirish
         target_sheet = "Results"
         for s in all_sheets:
             if "Results" in s:
@@ -160,7 +162,6 @@ if st.session_state.page == "ADMIN":
             
     except Exception as e:
         st.error(f"Ulanishda xato: {e}")
-        st.info("Maslahat: Google Sheets-dagi varaq nomi aynan 'Results' ekanligini tekshiring.")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
