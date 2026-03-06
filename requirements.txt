@@ -2,4 +2,4 @@ streamlit
 pandas
 requests
 streamlit-autorefresh
-streamlit-gsheets @ git+https://github.com/streamlit/gsheets-connection
+git+https://github.com/streamlit/gsheets-connection
