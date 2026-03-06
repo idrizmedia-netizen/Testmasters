@@ -5,7 +5,6 @@ import time
 import requests
 import random
 from datetime import datetime
-import threading
 from streamlit_autorefresh import st_autorefresh
 
 # 1. SAHIFA SOZLAMALARI
@@ -42,7 +41,6 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # 400 xatosini oldini olish uchun barqaror o'qish
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -50,9 +48,6 @@ def check_already_finished(name, subject):
             return len(exists) > 0
     except: return False
     return False
-
-# YANGILANGAN VA BARQAROR FUNKSIYA
-# ... (Yuqoridagi importlar va sozlamalar qismi o'zgarishsiz qoladi) ...
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
@@ -66,7 +61,6 @@ def background_tasks(name, subject, corrects, total, ball):
         }
         new_row_df = pd.DataFrame(new_row_data)
         
-        # Hozirgi natijalarni o'qish
         df = conn.read(worksheet="Results", ttl=0)
         
         if df is not None and not df.empty:
@@ -79,30 +73,12 @@ def background_tasks(name, subject, corrects, total, ball):
     except Exception as e:
         st.error(f"GSheets xatosi: {e}")
 
-# --- RESULT SAHIFASI QISMI ---
-elif st.session_state.page == "RESULT":
-    apply_styles()
-    res = st.session_state.final_score
-    st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
-    
-    with st.expander("🔍 Batafsil tahlil"):
-        for log in st.session_state.user_logs:
-            border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            # To'g'ri javobni xavfsiz ko'rsatish
-            correct_ans_msg = "" if log['correct'] else f"<p style='color:#92FE9D;'>✅ To'g'ri javob: <b>{log.get('correct_ans')}</b></p>"
-            
-            st.markdown(f'''
-            <div class="analysis-card" style="border-left-color: {border_color};">
-                <p><b>Savol:</b> {log["question"]}</p>
-                <p>Sizning javobingiz: {log["user_ans"]}</p>
-                {correct_ans_msg}
-            </div>
-            ''', unsafe_allow_html=True)
-            
-    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
-        st.session_state.page = "HOME"; st.rerun()
-
-# ... (Qolgan qismlarni avvalgi holatida qoldiring) ...
+    # Telegram xabarnomasi
+    try:
+        text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
+                      json={"chat_id": CHAT_ID, "text": text}, timeout=5)
+    except: pass
 
 def apply_styles(subject="Default"):
     bg_images = {
@@ -122,7 +98,6 @@ def apply_styles(subject="Default"):
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. TAYMER ---
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
         st_autorefresh(interval=1000, key="timer_refresh")
@@ -153,29 +128,17 @@ with st.sidebar.expander("🔐 Admin Panel"):
         st.rerun()
 
 # --- 7. SAHIFALAR ---
-
 if st.session_state.page == "ADMIN":
     apply_styles()
     st.title("📊 Natijalar (Admin)")
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
-    
     try:
-        all_sheets = conn.list_sheets() if hasattr(conn, 'list_sheets') else ["Results"]
-        target_sheet = "Results"
-        for s in all_sheets:
-            if "Results" in s:
-                target_sheet = s
-                break
-        
-        res_df = conn.read(worksheet=target_sheet, ttl=0)
-        
+        res_df = conn.read(worksheet="Results", ttl=0)
         if res_df is not None and not res_df.empty:
-            res_df = res_df.dropna(how='all')
-            st.dataframe(res_df, use_container_width=True)
+            st.dataframe(res_df.dropna(how='all'), use_container_width=True)
         else:
-            st.info("Hozircha natijalar yo'q. Jadval bo'sh.")
-            
+            st.info("Hozircha natijalar yo'q.")
     except Exception as e:
         st.error(f"Ulanishda xato: {e}")
 
@@ -186,7 +149,6 @@ elif st.session_state.page == "RESULT":
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            # To'g'ri javobni ko'rsatish
             correct_ans_text = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
             st.markdown(f'''
             <div class="analysis-card" style="border-left-color: {border_color};">
@@ -202,7 +164,6 @@ elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
     show_html_timer()
     st.markdown(f"### 📚 Fan: {st.session_state.selected_subject}")
-    
     with st.form(key="quiz_form"):
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
@@ -211,7 +172,6 @@ elif st.session_state.page == "TEST":
                 st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
             st.markdown("---")
-            
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             if None in user_answers.values():
                 st.error("⚠️ Barcha savollarni belgilang!")
@@ -222,16 +182,9 @@ elif st.session_state.page == "TEST":
                     c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
                     is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
                     if is_correct: corrects += 1
-                    logs.append({
-                        "question": item['q'], 
-                        "user_ans": user_answers[i], 
-                        "correct": is_correct,
-                        "correct_ans": c_ans
-                    })
-                
+                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_correct, "correct_ans": c_ans})
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
-                
                 with st.spinner("Natija saqlanmoqda..."):
                     background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 st.rerun()
@@ -258,10 +211,5 @@ elif st.session_state.page == "HOME":
                         opts = [v for v in mapping.values() if v not in ['nan', '']]
                         random.shuffle(opts)
                         test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "map": mapping, "image": row.get('Rasm')})
-                    
-                    st.session_state.update({
-                        "full_name": u_name, "selected_subject": selected_subject, 
-                        "test_items": test_items, "total_time": len(test_items) * 45, 
-                        "start_time": time.time(), "page": "TEST"
-                    })
+                    st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST"})
                     st.rerun()
