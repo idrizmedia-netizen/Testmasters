@@ -52,41 +52,57 @@ def check_already_finished(name, subject):
     return False
 
 # YANGILANGAN VA BARQAROR FUNKSIYA
+# ... (Yuqoridagi importlar va sozlamalar qismi o'zgarishsiz qoladi) ...
+
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        # Yangi qator ma'lumotlari (Sarlavha "Ball" deb o'zgartirildi)
         new_row_data = {
-            "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "Ism-familiya": str(name),
-            "Fan": str(subject),
-            "To'g'ri": int(corrects),
-            "Xato": int(total - corrects),
-            "Ball": str(ball) 
+            "Sana": [datetime.now().strftime("%Y-%m-%d %H:%M")],
+            "Ism-familiya": [str(name)],
+            "Fan": [str(subject)],
+            "To'g'ri": [int(corrects)],
+            "Xato": [int(total - corrects)],
+            "Ball": [str(ball)]
         }
+        new_row_df = pd.DataFrame(new_row_data)
         
-        # 1. Hozirgi natijalarni o'qish
+        # Hozirgi natijalarni o'qish
         df = conn.read(worksheet="Results", ttl=0)
-        new_row_df = pd.DataFrame([new_row_data])
         
-        # 2. Jadvalni birlashtirish
-        if df is not None:
-            df = df.dropna(how='all') # Bo'sh qatorlarni tozalash
+        if df is not None and not df.empty:
+            df = df.dropna(how='all')
             updated_df = pd.concat([df, new_row_df], ignore_index=True)
         else:
             updated_df = new_row_df
             
-        # 3. Google Sheets'ga yuklash
         conn.update(worksheet="Results", data=updated_df)
-        
     except Exception as e:
-        st.error(f"GSheets'ga yozishda xatolik: {e}")
+        st.error(f"GSheets xatosi: {e}")
 
-    # Telegram xabarnomasi
-    try:
-        text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
-                      json={"chat_id": CHAT_ID, "text": text}, timeout=5)
-    except: pass
+# --- RESULT SAHIFASI QISMI ---
+elif st.session_state.page == "RESULT":
+    apply_styles()
+    res = st.session_state.final_score
+    st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
+    
+    with st.expander("🔍 Batafsil tahlil"):
+        for log in st.session_state.user_logs:
+            border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
+            # To'g'ri javobni xavfsiz ko'rsatish
+            correct_ans_msg = "" if log['correct'] else f"<p style='color:#92FE9D;'>✅ To'g'ri javob: <b>{log.get('correct_ans')}</b></p>"
+            
+            st.markdown(f'''
+            <div class="analysis-card" style="border-left-color: {border_color};">
+                <p><b>Savol:</b> {log["question"]}</p>
+                <p>Sizning javobingiz: {log["user_ans"]}</p>
+                {correct_ans_msg}
+            </div>
+            ''', unsafe_allow_html=True)
+            
+    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
+        st.session_state.page = "HOME"; st.rerun()
+
+# ... (Qolgan qismlarni avvalgi holatida qoldiring) ...
 
 def apply_styles(subject="Default"):
     bg_images = {
