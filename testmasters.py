@@ -51,29 +51,33 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
-        new_row_data = {
-            "Sana": [datetime.now().strftime("%Y-%m-%d %H:%M")],
-            "Ism-familiya": [str(name)],
-            "Fan": [str(subject)],
-            "To'g'ri": [int(corrects)],
-            "Xato": [int(total - corrects)],
-            "Ball": [str(ball)]
-        }
-        new_row_df = pd.DataFrame(new_row_data)
+        # 1. Google Sheets API uchun kalitni olish (secrets.toml'dagi JSON)
+        # Streamlit Cloud'da "gcp_service_account" kalitini yuklagan bo'lishingiz kerak
+        creds_dict = st.secrets["gcp_service_account"]
         
-        df = conn.read(worksheet="Results", ttl=0)
+        # 2. Avtorizatsiya
+        scope = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/spreadsheets']
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
         
-        if df is not None and not df.empty:
-            df = df.dropna(how='all')
-            updated_df = pd.concat([df, new_row_df], ignore_index=True)
-        else:
-            updated_df = new_row_df
-            
-        conn.update(worksheet="Results", data=updated_df)
+        # 3. Fayl va varaqni ochish (Fayl nomi "Testmasters")
+        sheet = client.open("Testmasters").worksheet("Results")
+        
+        # 4. Yangi qatorni qo'shish (Append usuli 400 xatosini yo'qotadi)
+        new_row = [
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            str(name),
+            str(subject),
+            int(corrects),
+            int(total - corrects),
+            str(ball)
+        ]
+        sheet.append_row(new_row, value_input_option='USER_ENTERED')
+        
     except Exception as e:
-        st.error(f"GSheets xatosi: {e}")
+        st.error(f"Ma'lumot saqlashda xatolik: {e}")
 
-    # Telegram xabarnomasi
+    # Telegram xabarnomasi (o'zgarishsiz)
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
