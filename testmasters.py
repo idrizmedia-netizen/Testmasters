@@ -42,7 +42,6 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # Avvalgi ishlaydigan conn.read usuli
         df = conn.read(worksheet="Results", ttl=0)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -151,10 +150,14 @@ elif st.session_state.page == "RESULT":
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
+            # Agar noto'g'ri bo'lsa, to'g'ri javobni ko'rsatuvchi matn
+            correct_ans_info = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
+            
             st.markdown(f'''
             <div class="analysis-card" style="border-left-color: {border_color};">
                 <p><b>Savol:</b> {log["question"]}</p>
                 <p>Sizning javobingiz: {log["user_ans"]}</p>
+                {correct_ans_info}
             </div>
             ''', unsafe_allow_html=True)
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
@@ -182,7 +185,13 @@ elif st.session_state.page == "TEST":
                     c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
                     is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
                     if is_correct: corrects += 1
-                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_correct})
+                    # Logs ro'yxatiga 'correct_ans' qo'shildi
+                    logs.append({
+                        "question": item['q'], 
+                        "user_ans": user_answers[i], 
+                        "correct": is_correct,
+                        "correct_ans": c_ans
+                    })
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
                 background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
