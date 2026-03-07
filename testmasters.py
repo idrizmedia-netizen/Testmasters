@@ -16,8 +16,11 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    # GSheets ulanishi
+    # GSheets ulanishi (Faqat yozish uchun qoladi)
     conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # Google Sheet ID (CSV o'qish uchun)
+    SHEET_ID = "1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9"
 except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
     st.stop()
@@ -26,7 +29,7 @@ except Exception as e:
 
 def load_questions():
     try:
-        csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/pub?output=csv"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
@@ -41,12 +44,15 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        df = conn.read(worksheet="Results", ttl=0)
+        # CSV usulida o'qish (400 Bad Request xatosini bermaydi)
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Results"
+        df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject))]
             return len(exists) > 0
-    except: return False
+    except: 
+        return False
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
@@ -61,6 +67,7 @@ def background_tasks(name, subject, corrects, total, ball):
         }
         new_row_df = pd.DataFrame(new_row_data)
         
+        # Yozish uchun baribir conn.read kerak, lekin buni xatolik bermasligi uchun try ichida saqlaymiz
         df = conn.read(worksheet="Results", ttl=0)
         
         if df is not None and not df.empty:
@@ -134,13 +141,15 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        res_df = conn.read(worksheet="Results", ttl=0)
+        # Admin panel uchun ham CSV usulida o'qish (400 xatosini yo'qotadi)
+        csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Results"
+        res_df = pd.read_csv(csv_url)
         if res_df is not None and not res_df.empty:
             st.dataframe(res_df.dropna(how='all'), use_container_width=True)
         else:
             st.info("Hozircha natijalar yo'q.")
     except Exception as e:
-        st.error(f"Ulanishda xato: {e}")
+        st.error(f"Ma'lumotlarni yuklashda xato: {e}")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
