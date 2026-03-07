@@ -16,10 +16,10 @@ try:
     CHAT_ID = st.secrets["general"]["chat_id"]
     ADMIN_PASS = st.secrets["general"]["admin_password"]
     
-    # GSheets ulanishi (Faqat yozish uchun qoladi)
+    # GSheets ulanishi (Faqat yozish uchun)
     conn = st.connection("gsheets", type=GSheetsConnection)
     
-    # Google Sheet ID (CSV o'qish uchun)
+    # Google Sheet ID - Faqat ID raqamini tekshiring
     SHEET_ID = "1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9"
 except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
@@ -29,6 +29,7 @@ except Exception as e:
 
 def load_questions():
     try:
+        # Eng barqaror CSV o'qish usuli
         csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/pub?output=csv"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
@@ -36,7 +37,7 @@ def load_questions():
             if "Fan" in df.columns:
                 return df
             else:
-                st.error(f"Xato: Jadvalda 'Fan' ustuni topilmadi.")
+                st.error("Xato: Jadvalda 'Fan' ustuni topilmadi.")
         return None
     except Exception as e:
         st.error(f"Ma'lumot o'qishda xatolik: {e}")
@@ -44,7 +45,7 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # CSV usulida o'qish (400 Bad Request xatosini bermaydi)
+        # Natijalarni tekshirish uchun maxsus CSV havolasi
         csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Results"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
@@ -67,9 +68,8 @@ def background_tasks(name, subject, corrects, total, ball):
         }
         new_row_df = pd.DataFrame(new_row_data)
         
-        # Yozish uchun baribir conn.read kerak, lekin buni xatolik bermasligi uchun try ichida saqlaymiz
+        # Yozish uchun GSheetsConnection dan foydalanamiz
         df = conn.read(worksheet="Results", ttl=0)
-        
         if df is not None and not df.empty:
             df = df.dropna(how='all')
             updated_df = pd.concat([df, new_row_df], ignore_index=True)
@@ -78,9 +78,8 @@ def background_tasks(name, subject, corrects, total, ball):
             
         conn.update(worksheet="Results", data=updated_df)
     except Exception as e:
-        st.error(f"GSheets xatosi: {e}")
+        st.error(f"GSheets yozish xatosi: {e}")
 
-    # Telegram xabarnomasi
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
@@ -97,11 +96,11 @@ def apply_styles(subject="Default"):
     bg_url = bg_images.get(subject, bg_images["Default"])
     st.markdown(f"""
     <style>
-    .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; font-family: 'Inter', sans-serif; }}
+    .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; }}
     .main-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 20px; }}
     .analysis-card {{ background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid; }}
-    div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-size: 20px !important; font-weight: 800 !important; border-radius: 15px !important; border: none !important; padding: 18px !important; text-transform: uppercase; }}
-    h1, h2, h3, p, label, .stMarkdown {{ color: white !important; }}
+    div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-weight: 800 !important; border-radius: 15px !important; }}
+    h1, h2, h3, p, label {{ color: white !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -110,14 +109,12 @@ def show_html_timer():
         st_autorefresh(interval=1000, key="timer_refresh")
         elapsed = time.time() - st.session_state.start_time
         remaining = max(0, int(st.session_state.total_time - elapsed))
-        
         st.sidebar.markdown(f"""
-        <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center; margin-bottom: 20px;">
-            <h1 style="color:#00C9FF; margin:0; font-size:40px; font-family:sans-serif;">{remaining//60:02d}:{remaining%60:02d}</h1>
-            <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
+        <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center;">
+            <h1 style="color:#00C9FF; margin:0; font-size:40px;">{remaining//60:02d}:{remaining%60:02d}</h1>
+            <p style="color:white; margin:0; font-weight:bold;">VAQT QOLDI</p>
         </div>
         """, unsafe_allow_html=True)
-        
         if remaining <= 0:
             st.session_state.page = "HOME"
             st.rerun()
@@ -131,8 +128,7 @@ st.sidebar.markdown("---")
 with st.sidebar.expander("🔐 Admin Panel"):
     password = st.text_input("Parol:", type="password", key="admin_pwd_input")
     if password == ADMIN_PASS and st.button("Kirish", key="admin_login_btn"):
-        st.session_state.page = "ADMIN"
-        st.rerun()
+        st.session_state.page = "ADMIN"; st.rerun()
 
 # --- 7. SAHIFALAR ---
 if st.session_state.page == "ADMIN":
@@ -141,15 +137,11 @@ if st.session_state.page == "ADMIN":
     if st.button("⬅️ QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
     try:
-        # Admin panel uchun ham CSV usulida o'qish (400 xatosini yo'qotadi)
         csv_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Results"
         res_df = pd.read_csv(csv_url)
-        if res_df is not None and not res_df.empty:
-            st.dataframe(res_df.dropna(how='all'), use_container_width=True)
-        else:
-            st.info("Hozircha natijalar yo'q.")
+        st.dataframe(res_df.dropna(how='all'), use_container_width=True)
     except Exception as e:
-        st.error(f"Ma'lumotlarni yuklashda xato: {e}")
+        st.error(f"Natija yuklashda xato: {e}")
 
 elif st.session_state.page == "RESULT":
     apply_styles()
@@ -158,14 +150,7 @@ elif st.session_state.page == "RESULT":
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            correct_ans_text = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
-            st.markdown(f'''
-            <div class="analysis-card" style="border-left-color: {border_color};">
-                <p><b>Savol:</b> {log["question"]}</p>
-                <p>Sizning javobingiz: {log["user_ans"]}</p>
-                {correct_ans_text}
-            </div>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'<div class="analysis-card" style="border-left-color: {border_color};"><p><b>Savol:</b> {log["question"]}</p><p>Javobingiz: {log["user_ans"]}</p></div>', unsafe_allow_html=True)
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
 
@@ -177,25 +162,20 @@ elif st.session_state.page == "TEST":
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
-            if item.get('image') and str(item['image']) != 'nan':
-                st.image(item['image'])
+            if item.get('image') and str(item['image']) != 'nan': st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
-            st.markdown("---")
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
-            if None in user_answers.values():
-                st.error("⚠️ Barcha savollarni belgilang!")
+            if None in user_answers.values(): st.error("⚠️ Barcha savollarni belgilang!")
             else:
-                logs = []
-                corrects = 0
+                logs = []; corrects = 0
                 for i, item in enumerate(st.session_state.test_items):
                     c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
                     is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
                     if is_correct: corrects += 1
-                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_correct, "correct_ans": c_ans})
+                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_correct})
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
-                with st.spinner("Natija saqlanmoqda..."):
-                    background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
+                background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
                 st.rerun()
 
 elif st.session_state.page == "HOME":
@@ -211,14 +191,13 @@ elif st.session_state.page == "HOME":
             elif check_already_finished(u_name, selected_subject): st.error("❌ Siz topshirib bo'lgansiz!")
             else:
                 sub_qs = q_df[q_df['Fan'] == selected_subject]
-                if not sub_qs.empty:
-                    sample_size = min(len(sub_qs), 30)
-                    sampled_qs = sub_qs.sample(n=sample_size)
-                    test_items = []
-                    for _, row in sampled_qs.iterrows():
-                        mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
-                        opts = [v for v in mapping.values() if v not in ['nan', '']]
-                        random.shuffle(opts)
-                        test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "map": mapping, "image": row.get('Rasm')})
-                    st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST"})
-                    st.rerun()
+                sample_size = min(len(sub_qs), 30)
+                sampled_qs = sub_qs.sample(n=sample_size)
+                test_items = []
+                for _, row in sampled_qs.iterrows():
+                    mapping = {'A': str(row.get('A','')), 'B': str(row.get('B','')), 'C': str(row.get('C','')), 'D': str(row.get('D',''))}
+                    opts = [v for v in mapping.values() if v not in ['nan', '']]
+                    random.shuffle(opts)
+                    test_items.append({"q": row['Savol'], "o": opts, "c": row['Javob'], "map": mapping, "image": row.get('Rasm')})
+                st.session_state.update({"full_name": u_name, "selected_subject": selected_subject, "test_items": test_items, "total_time": len(test_items) * 45, "start_time": time.time(), "page": "TEST"})
+                st.rerun()
