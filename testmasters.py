@@ -52,6 +52,7 @@ def check_already_finished(name, subject):
 
 def background_tasks(name, subject, corrects, total, ball):
     try:
+        # Yangi natija uchun lug'at (Dictionary)
         new_row_data = {
             "Sana": [datetime.now().strftime("%Y-%m-%d %H:%M")],
             "Ism-familiya": [str(name)],
@@ -62,14 +63,17 @@ def background_tasks(name, subject, corrects, total, ball):
         }
         new_row_df = pd.DataFrame(new_row_data)
         
+        # Mavjud ma'lumotlarni o'qib olish
         df = conn.read(worksheet="Results", ttl=0)
         
+        # Agar jadval bo'sh bo'lmasa, yangi qatorni mavjud ma'lumotlarga qo'shamiz
         if df is not None and not df.empty:
             df = df.dropna(how='all')
             updated_df = pd.concat([df, new_row_df], ignore_index=True)
         else:
             updated_df = new_row_df
             
+        # Ma'lumotni Google Sheets'ga yuborish
         conn.update(worksheet="Results", data=updated_df)
     except Exception as e:
         st.error(f"GSheets xatosi: {e}")
@@ -79,8 +83,8 @@ def background_tasks(name, subject, corrects, total, ball):
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
                       json={"chat_id": CHAT_ID, "text": text}, timeout=5)
-    except: pass
-
+    except: 
+        pass
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
