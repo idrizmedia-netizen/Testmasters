@@ -14,7 +14,6 @@ st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="ce
 try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
-    ADMIN_PASS = st.secrets["general"]["admin_password"]
     
     # GSheets ulanishi
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -85,6 +84,7 @@ def background_tasks(name, subject, corrects, total, ball):
                       json={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: 
         pass
+
 def apply_styles(subject="Default"):
     bg_images = {
         "Matematika": "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=2000",
@@ -124,37 +124,14 @@ def show_html_timer():
 if 'page' not in st.session_state: st.session_state.page = "HOME"
 if 'user_logs' not in st.session_state: st.session_state.user_logs = []
 
-# --- 6. SIDEBAR ADMIN ---
-st.sidebar.markdown("---")
-with st.sidebar.expander("🔐 Admin Panel"):
-    password = st.text_input("Parol:", type="password", key="admin_pwd_input")
-    if password == ADMIN_PASS and st.button("Kirish", key="admin_login_btn"):
-        st.session_state.page = "ADMIN"
-        st.rerun()
-
 # --- 7. SAHIFALAR ---
-if st.session_state.page == "ADMIN":
-    apply_styles()
-    st.title("📊 Natijalar (Admin)")
-    if st.button("⬅️ QAYTISH"):
-        st.session_state.page = "HOME"; st.rerun()
-    try:
-        res_df = conn.read(worksheet="Results", ttl=0)
-        if res_df is not None and not res_df.empty:
-            st.dataframe(res_df.dropna(how='all'), use_container_width=True)
-        else:
-            st.info("Hozircha natijalar yo'q.")
-    except Exception as e:
-        st.error(f"Ulanishda xato: {e}")
-
-elif st.session_state.page == "RESULT":
+if st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
     with st.expander("🔍 Batafsil tahlil"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            # Agar noto'g'ri bo'lsa, to'g'ri javobni ko'rsatuvchi matn
             correct_ans_info = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
             
             st.markdown(f'''
@@ -189,7 +166,6 @@ elif st.session_state.page == "TEST":
                     c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
                     is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
                     if is_correct: corrects += 1
-                    # Logs ro'yxatiga 'correct_ans' qo'shildi
                     logs.append({
                         "question": item['q'], 
                         "user_ans": user_answers[i], 
