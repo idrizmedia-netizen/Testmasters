@@ -1,5 +1,6 @@
-streamlit
+gspread
+google-auth
+google-auth-oauthlib
 pandas
+streamlit
 requests
-streamlit-autorefresh
-git+https://github.com/streamlit/gsheets-connection
