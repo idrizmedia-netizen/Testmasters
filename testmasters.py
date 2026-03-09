@@ -7,7 +7,7 @@ import random
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account  # Yangi import
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -17,7 +17,7 @@ try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
     
-    # GSheets ulanishi (o'qish uchun qoldi)
+    # GSheets o'qish uchun ulanish
     conn = st.connection("gsheets", type=GSheetsConnection)
 except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
@@ -51,20 +51,22 @@ def check_already_finished(name, subject):
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
-    # Google Sheets'ga yozish (gspread orqali)
+    # Google Sheets'ga yozish (gspread + google-auth orqali)
     try:
         creds_dict = st.secrets["gcp_service_account"]
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        
+        # google-auth yordamida autentifikatsiya
+        creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
         
-        # Siz bergan jadval ID
+        # Jadvalga ulanish
         sheet = client.open_by_key("1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U").worksheet("Results")
         
         row = [datetime.now().strftime("%Y-%m-%d %H:%M"), str(name), str(subject), int(corrects), int(total - corrects), f"{ball}%"]
         sheet.append_row(row)
     except Exception as e:
-        st.error(f"Google Sheets yozish xatosi (gspread): {e}")
+        st.error(f"Google Sheets yozish xatosi: {e}")
 
     # Telegram xabarnomasi
     try:
