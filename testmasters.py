@@ -178,8 +178,12 @@ elif st.session_state.page == "HOME":
             all_subjects = sorted(df_all['Fan'].unique().tolist())
             selected_rating_subject = st.selectbox("Reytingni ko'rish uchun fanni tanlang:", all_subjects)
             rating_df = df_all[df_all['Fan'] == selected_rating_subject]
-            top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10)
-            st.table(top10[['Ism-familiya', 'Ball']])
+            
+            # Reytingni tartiblash va tartib raqami qo'shish
+            top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10).copy()
+            top10.insert(0, "№", range(1, len(top10) + 1))
+            
+            st.table(top10[['№', 'Ism-familiya', 'Ball']])
         else: st.write("Hozircha natijalar yo'q.")
     
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
