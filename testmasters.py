@@ -1,22 +1,30 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import time
 import requests
 import random
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import gspread
+from google.oauth2 import service_account
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
 
-# 2. SECRETS VA ULANISH
+# 2. SECRETS VA ULANISH (GSheetsConnection o'rniga barqaror gspread usuli)
 try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
     
     # GSheets ulanishi
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    creds_dict = st.secrets["gcp_service_account"]
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
+    gc = gspread.authorize(creds)
+    
+    # Jadvalni ochish
+    sh = gc.open_by_key("1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U")
+    result_sheet = sh.worksheet("Results")
 except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
     st.stop()
@@ -41,8 +49,10 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        df = conn.read(worksheet="Results", ttl=0)
-        if df is not None and not df.empty:
+        # Gspread orqali o'qish
+        data = result_sheet.get_all_records()
+        df = pd.DataFrame(data)
+        if not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject))]
             return len(exists) > 0
@@ -50,33 +60,21 @@ def check_already_finished(name, subject):
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
-    # 1. YANGI MA'LUMOTNI TAYYORLASH
-    new_data = pd.DataFrame([{
-        "Sana": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Ism-familiya": str(name),
-        "Fan": str(subject),
-        "To'g'ri": int(corrects),
-        "Xato": int(total - corrects),
-        "Ball": str(ball)
-    }])
-
+    # 1. YANGI MA'LUMOTNI TAYYORLASH VA YOZISH (gspread orqali)
     try:
-        # 2. ESKI MA'LUMOTNI O'QISH
-        existing_df = conn.read(worksheet="Results", ttl=0)
-        
-        if existing_df is not None and not existing_df.empty:
-            existing_df.columns = [str(c).strip() for c in existing_df.columns]
-            final_df = pd.concat([existing_df, new_data], ignore_index=True)
-        else:
-            final_df = new_data
-            
-        # 3. JADVALNI YANGILASH
-        conn.update(worksheet="Results", data=final_df)
-        
+        row = [
+            datetime.now().strftime("%Y-%m-%d %H:%M"), 
+            str(name), 
+            str(subject), 
+            int(corrects), 
+            int(total - corrects), 
+            f"{ball}%"
+        ]
+        result_sheet.append_row(row)
     except Exception as e:
         st.error(f"Google Sheets xatosi: {e}")
 
-    # 4. TELEGRAM XABARNOMASI
+    # 2. TELEGRAM XABARNOMASI
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
