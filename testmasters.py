@@ -10,7 +10,7 @@ from google.oauth2 import service_account
 import plotly.express as px  # Grafiklar uchun
 
 # 1. SAHIFA SOZLAMALARI
-st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
+st.set_page_config(page_title="ZiyoMap", page_icon="🎓", layout="centered")
 
 # 2. SECRETS VA ULANISH
 try:
@@ -44,17 +44,6 @@ def get_results_cached():
     try: return pd.DataFrame(result_sheet.get_all_records())
     except: return pd.DataFrame()
 
-def check_already_finished(name, subject, category):
-    df = get_results_cached()
-    if not df.empty:
-        df.columns = [str(c).strip() for c in df.columns]
-        if 'Tur' in df.columns:
-            exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject)) & (df['Tur'].astype(str) == str(category))]
-        else:
-            exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject))]
-        return len(exists) > 0
-    return False
-
 def background_tasks(name, subject, category, corrects, total, ball):
     try:
         row = [datetime.now().strftime("%Y-%m-%d %H:%M"), str(name), str(category), str(subject), int(corrects), int(total - corrects), f"{ball}%"]
@@ -62,7 +51,6 @@ def background_tasks(name, subject, category, corrects, total, ball):
         st.cache_data.clear() 
     except: pass
     try:
-        # Telegram xabari endi to'g'ri va noto'g'ri javoblarni ko'rsatadi
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📂: {category}\n📚: {subject}\n✅ To'g'ri: {corrects}\n❌ Noto'g'ri: {total - corrects}\n📊 Ball: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
@@ -113,7 +101,6 @@ if st.session_state.page == "RESULT":
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1>{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
     
-    # 1. Natijalar tahlili (expander ichida)
     with st.expander("🔍 Natijalar tahlilini ko'rish"):
         for log in st.session_state.user_logs:
             color = "#92FE9D" if log['correct'] else "#FF4B4B"
@@ -125,29 +112,23 @@ if st.session_state.page == "RESULT":
             </div>
             """, unsafe_allow_html=True)
     
-    # 2. Grafik tahlil qismi
     st.markdown("---")
     if st.button("📊 GRAFIK TAHLILNI KO'RISH"):
         df_history = get_results_cached()
         if not df_history.empty:
             my_history = df_history[df_history['Ism-familiya'] == res["name"]].copy()
             my_history['Ball_Num'] = my_history['Ball'].astype(str).str.replace('%', '').astype(float)
-            
-            fig = px.bar(my_history, x='Sana', y='Ball_Num', 
-                         title=f"{res['name']} ning test natijalari dinamikasi",
-                         labels={'Ball_Num': 'Ball (%)', 'Sana': 'Topshirilgan vaqt'},
-                         color='Ball_Num', 
-                         color_continuous_scale='Viridis',
-                         text='Ball_Num')
+            fig = px.bar(my_history, x='Sana', y='Ball_Num', title=f"{res['name']} ning test natijalari dinamikasi", labels={'Ball_Num': 'Ball (%)', 'Sana': 'Topshirilgan vaqt'}, color='Ball_Num', color_continuous_scale='Viridis', text='Ball_Num')
             fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white')
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
     
-    # 3. Asosiy sahifaga qaytish
+    st.markdown("---")
+    st.link_button("📢 Telegram kanalimizga o'tish", "https://t.me/Testmasters_LC")
+    
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): 
-        st.session_state.page = "HOME"; 
-        st.rerun()
+        st.session_state.page = "HOME"; st.rerun()
 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
@@ -175,18 +156,23 @@ elif st.session_state.page == "TEST":
 
 elif st.session_state.page == "HOME":
     apply_styles()
-    st.markdown("<h1 style='text-align:center;'>🎓 Testmasters Online</h1>", unsafe_allow_html=True)
-    category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
+    st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
+    category = st.radio("Bo'limni tanlang:", ["O'quvchi uchun", "Attestatsiya uchun", "Sertifikat uchun"], index=None)
     if category:
-        u_name = st.text_input("Ism-familiyangiz:")
+        if category == "Sertifikat uchun":
+            st.info("⚠️ Sertifikat yuklab olish uchun ism-familiyangizni to'g'ri va to'liq kiriting!")
+        u_name = st.text_input("Ism-familiyangizni kiriting:")
         q_df = load_questions()
         if q_df is not None:
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             if st.button("🚀 TESTNI BOSHLASH"):
-                sub_qs = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
-                sampled_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-                total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
-                test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
-                st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
-                st.rerun()
+                if not u_name:
+                    st.error("Iltimos, ism-familiyangizni kiriting!")
+                else:
+                    sub_qs = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
+                    sampled_qs = sub_qs.sample(n=min(len(sub_qs), 30))
+                    total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
+                    test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
+                    st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
+                    st.rerun()
