@@ -151,8 +151,10 @@ if st.session_state.page == "RESULT":
         else:
             st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
     
+    # ... RESULT sahifasining oxiri ...
     st.markdown("---")
-    st.link_button("📢 Telegram kanalimizga o'tish", "https://t.me/Testmasters_LC")
+    # Kanal linki yangilandi
+    st.link_button("📢 ZiyoMap kanalimizga o'tish", "https://t.me/ZiyoMap")
     
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): 
         st.session_state.page = "HOME"; st.rerun()
