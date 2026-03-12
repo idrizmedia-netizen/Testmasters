@@ -80,19 +80,14 @@ def show_smooth_timer(seconds):
 def apply_styles(subject="Default"):
     st.markdown(f"""
     <style>
-    /* Asosiy fon */
     .stApp {{ 
         background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000") no-repeat center center fixed !important; 
         background-size: cover !important; 
     }}
-    
-    /* Barcha matnlarni oq va aniq ko'rinadigan qilish */
     h1, h2, h3, p, label, .stMarkdown, .stText, div[role="radiogroup"] label {{ 
         color: #ffffff !important; 
         text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
     }}
-    
-    /* Kategoriyalar (Radio tugmalar) uchun chiroyli quti uslubi */
     div[role="radiogroup"] > label {{ 
         background: rgba(255, 255, 255, 0.1) !important; 
         border: 1px solid rgba(0, 201, 255, 0.5) !important;
@@ -101,8 +96,6 @@ def apply_styles(subject="Default"):
         margin-bottom: 5px !important;
         transition: 0.3s !important;
     }}
-    
-    /* Gradient Tugmalar */
     div.stButton > button {{ 
         width: 100%; 
         border: none !important;
@@ -114,8 +107,6 @@ def apply_styles(subject="Default"):
         transition: transform 0.2s !important;
     }}
     div.stButton > button:hover {{ transform: scale(1.03); filter: brightness(1.1); }}
-    
-    /* Savollar yozuvini aniqroq qilish */
     .stMarkdown p, .stForm p {{ font-size: 18px !important; line-height: 1.5 !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -127,7 +118,6 @@ if st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1>{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
-    
     with st.expander("🔍 Natijalar tahlilini ko'rish"):
         for log in st.session_state.user_logs:
             color = "#92FE9D" if log['correct'] else "#FF4B4B"
@@ -138,7 +128,6 @@ if st.session_state.page == "RESULT":
                 <p style='color:{color};'><b>To'g'ri javob:</b> {log['correct_ans']}</p>
             </div>
             """, unsafe_allow_html=True)
-    
     st.markdown("---")
     if st.button("📊 GRAFIK TAHLILNI KO'RISH"):
         df_history = get_results_cached()
@@ -148,12 +137,9 @@ if st.session_state.page == "RESULT":
             fig = px.bar(my_history, x='Sana', y='Ball_Num', title=f"{res['name']} ning test natijalari dinamikasi", labels={'Ball_Num': 'Ball (%)', 'Sana': 'Topshirilgan vaqt'}, color='Ball_Num', color_continuous_scale='Viridis', text='Ball_Num')
             fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white')
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
-    
+        else: st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
     st.markdown("---")
     st.link_button("📢 ZiyoMap kanalimizga o'tish", "https://t.me/ZiyoMap")
-    
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): 
         st.session_state.page = "HOME"; st.rerun()
 
@@ -167,24 +153,16 @@ elif st.session_state.page == "TEST":
             st.markdown(f"**{i+1}. {item['q']}**")
             if pd.notna(item['image']) and str(item['image']) != '0': st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
-        
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             logs = []
             corrects = 0
             for i, item in enumerate(st.session_state.test_items):
                 u_ans = user_answers[i]
-                
-                # Yangilangan mantiq
                 sheet_answer = str(item['c']).strip().upper()
-                if sheet_answer in ['A', 'B', 'C', 'D']:
-                    c_ans = item['map'].get(sheet_answer)
-                else:
-                    c_ans = sheet_answer
-                
+                c_ans = item['map'].get(sheet_answer) if sheet_answer in ['A', 'B', 'C', 'D'] else sheet_answer
                 is_correct = (str(u_ans).strip().lower() == str(c_ans).strip().lower())
                 if is_correct: corrects += 1
                 logs.append({"question": item['q'], "user_ans": u_ans, "correct": is_correct, "correct_ans": c_ans})
-            
             ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
             st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
             background_tasks(st.session_state.full_name, st.session_state.selected_subject, st.session_state.category, corrects, len(st.session_state.test_items), ball)
@@ -193,8 +171,6 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
-    
-    # REYTING QISMI
     with st.expander("🏆 FANLAR BO'YICHA REYTING"):
         df_all = get_results_cached()
         if not df_all.empty:
@@ -204,24 +180,34 @@ elif st.session_state.page == "HOME":
             rating_df = df_all[df_all['Fan'] == selected_rating_subject]
             top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10)
             st.table(top10[['Ism-familiya', 'Ball']])
-        else:
-            st.write("Hozircha natijalar yo'q.")
+        else: st.write("Hozircha natijalar yo'q.")
     
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
+    difficulty = st.radio("Qiyinchilik darajasi:", ["Oson", "O'rta", "Qiyin"], horizontal=True)
+    
     if category:
-        if category == "Sertifikat":
-            st.info("⚠️ Sertifikat yuklab olish uchun ism-familiyangizni to'g'ri va to'liq kiriting!")
+        if category == "Sertifikat": st.info("⚠️ Sertifikat yuklab olish uchun ism-familiyangizni to'g'ri va to'liq kiriting!")
         u_name = st.text_input("Ism-familiyangizni kiriting:")
         q_df = load_questions()
         if q_df is not None:
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             if st.button("🚀 TESTNI BOSHLASH"):
-                if not u_name:
-                    st.error("Iltimos, ism-familiyangizni kiriting!")
+                if not u_name: st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    sub_qs = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
-                    sampled_qs = sub_qs.sample(n=min(len(sub_qs), 30))
+                    sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
+                    oson = sub_qs_all[sub_qs_all['Vaqt'] <= 30]
+                    orta = sub_qs_all[(sub_qs_all['Vaqt'] > 30) & (sub_qs_all['Vaqt'] <= 60)]
+                    qiyin = sub_qs_all[sub_qs_all['Vaqt'] > 60]
+                    
+                    # Balansli tanlov
+                    p1, p2, p3 = oson.sample(n=min(len(oson), 10)), orta.sample(n=min(len(orta), 10)), qiyin.sample(n=min(len(qiyin), 10))
+                    pool = pd.concat([p1, p2, p3])
+                    if len(pool) < 30:
+                        others = sub_qs_all.drop(pool.index)
+                        pool = pd.concat([pool, others.sample(n=min(len(others), 30 - len(pool)))])
+                    
+                    sampled_qs = pool.sample(frac=1)
                     total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
                     test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
                     st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
