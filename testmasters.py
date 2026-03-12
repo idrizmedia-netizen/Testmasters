@@ -117,11 +117,10 @@ if st.session_state.page == "RESULT":
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
     
-    # TAHLIL QISMI
+    # TAHLIL QISMI (To'g'ri javoblar bilan)
     with st.expander("🔍 Natijalar tahlili (Xatolarni ko'rish)"):
         for log in st.session_state.user_logs:
             border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
-            # Agar javob xato bo'lsa, to'g'ri javobni ham ko'rsatadi
             correct_ans_info = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
             
             st.markdown(f'''
