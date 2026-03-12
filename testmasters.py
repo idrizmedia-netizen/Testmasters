@@ -151,9 +151,7 @@ if st.session_state.page == "RESULT":
         else:
             st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
     
-    # ... RESULT sahifasining oxiri ...
     st.markdown("---")
-    # Kanal linki yangilandi
     st.link_button("📢 ZiyoMap kanalimizga o'tish", "https://t.me/ZiyoMap")
     
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): 
@@ -195,6 +193,20 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
+    
+    # REYTING QISMI
+    with st.expander("🏆 FANLAR BO'YICHA REYTING"):
+        df_all = get_results_cached()
+        if not df_all.empty:
+            df_all['Ball_Num'] = df_all['Ball'].astype(str).str.replace('%', '').astype(float)
+            all_subjects = sorted(df_all['Fan'].unique().tolist())
+            selected_rating_subject = st.selectbox("Reytingni ko'rish uchun fanni tanlang:", all_subjects)
+            rating_df = df_all[df_all['Fan'] == selected_rating_subject]
+            top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10)
+            st.table(top10[['Ism-familiya', 'Ball']])
+        else:
+            st.write("Hozircha natijalar yo'q.")
+    
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
     if category:
         if category == "Sertifikat":
