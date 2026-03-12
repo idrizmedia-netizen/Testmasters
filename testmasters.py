@@ -183,32 +183,46 @@ elif st.session_state.page == "HOME":
         else: st.write("Hozircha natijalar yo'q.")
     
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
-    difficulty = st.radio("Qiyinchilik darajasi:", ["Oson", "O'rta", "Qiyin"], horizontal=True)
     
     if category:
-        if category == "Sertifikat": st.info("⚠️ Sertifikat yuklab olish uchun ism-familiyangizni to'g'ri va to'liq kiriting!")
         u_name = st.text_input("Ism-familiyangizni kiriting:")
         q_df = load_questions()
         if q_df is not None:
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
+            
             if st.button("🚀 TESTNI BOSHLASH"):
-                if not u_name: st.error("Iltimos, ism-familiyangizni kiriting!")
+                if not u_name: 
+                    st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
+                    # Bazani tayyorlash va vaqtni raqamga o'tkazish
+                    sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
+                    sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(45)
+                    
+                    # Qiyinchilik darajalariga ajratish
                     oson = sub_qs_all[sub_qs_all['Vaqt'] <= 30]
                     orta = sub_qs_all[(sub_qs_all['Vaqt'] > 30) & (sub_qs_all['Vaqt'] <= 60)]
                     qiyin = sub_qs_all[sub_qs_all['Vaqt'] > 60]
                     
-                    # Balansli tanlov
-                    p1, p2, p3 = oson.sample(n=min(len(oson), 10)), orta.sample(n=min(len(orta), 10)), qiyin.sample(n=min(len(qiyin), 10))
+                    # Balansli tanlov: har biridan 10 tadan
+                    p1 = oson.sample(n=min(len(oson), 10)) if not oson.empty else pd.DataFrame()
+                    p2 = orta.sample(n=min(len(orta), 10)) if not orta.empty else pd.DataFrame()
+                    p3 = qiyin.sample(n=min(len(qiyin), 10)) if not qiyin.empty else pd.DataFrame()
+                    
                     pool = pd.concat([p1, p2, p3])
+                    
+                    # Agar 30 taga yetmasa, qolganidan to'ldirish
                     if len(pool) < 30:
                         others = sub_qs_all.drop(pool.index)
-                        pool = pd.concat([pool, others.sample(n=min(len(others), 30 - len(pool)))])
+                        needed = 30 - len(pool)
+                        fill = others.sample(n=min(len(others), needed))
+                        pool = pd.concat([pool, fill])
                     
+                    # Yakuniy aralashtirish
                     sampled_qs = pool.sample(frac=1)
-                    total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
+                    total_time = int(sampled_qs['Vaqt'].sum()) 
+                    
                     test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
+                    
                     st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
                     st.rerun()
