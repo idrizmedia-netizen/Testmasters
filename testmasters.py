@@ -83,13 +83,19 @@ def apply_styles(subject="Default"):
     .stApp {{ 
         background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000") no-repeat center center fixed !important; 
         background-size: cover !important; 
-        background-color: #0e1117 !important;
     }}
-    h1, h2, h3, p, label, .stMarkdown, .stText, .stRadio label {{ color: white !important; }}
-    [data-testid="stSidebar"] {{ background-color: #1a1c22 !important; }}
-    .main-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; }}
-    .analysis-card {{ background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; margin-bottom: 10px; }}
-    div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-weight: 800 !important; }}
+    /* Chiroyli Gradient Tugmalar */
+    div.stButton > button {{ 
+        width: 100%; 
+        border: none !important;
+        border-radius: 15px !important;
+        background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; 
+        color: #001f3f !important; 
+        font-weight: 900 !important; 
+        padding: 12px !important;
+        transition: transform 0.2s !important;
+    }}
+    div.stButton > button:hover {{ transform: scale(1.03); filter: brightness(1.1); }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -157,9 +163,10 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
-    category = st.radio("Bo'limni tanlang:", ["O'quvchi uchun", "Attestatsiya uchun", "Sertifikat uchun"], index=None)
+    # Kategoriyalar qisqartirildi
+    category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
     if category:
-        if category == "Sertifikat uchun":
+        if category == "Sertifikat":
             st.info("⚠️ Sertifikat yuklab olish uchun ism-familiyangizni to'g'ri va to'liq kiriting!")
         u_name = st.text_input("Ism-familiyangizni kiriting:")
         q_df = load_questions()
