@@ -59,7 +59,7 @@ def background_tasks(name, subject, category, corrects, total, ball):
 def show_smooth_timer(seconds):
     timer_html = f"""
     <div id="timer" style="font-size: 30px; font-weight: bold; color: #00C9FF; text-align: center; 
-         background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px solid #00C9FF;">
+           background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; border: 1px solid #00C9FF;">
         {seconds//60:02d}:{seconds%60:02d}
     </div>
     <script>
@@ -167,15 +167,24 @@ elif st.session_state.page == "TEST":
             st.markdown(f"**{i+1}. {item['q']}**")
             if pd.notna(item['image']) and str(item['image']) != '0': st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
+        
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             logs = []
             corrects = 0
             for i, item in enumerate(st.session_state.test_items):
                 u_ans = user_answers[i]
-                c_ans = item['map'].get(str(item['c']).strip().upper())
+                
+                # Yangilangan mantiq
+                sheet_answer = str(item['c']).strip().upper()
+                if sheet_answer in ['A', 'B', 'C', 'D']:
+                    c_ans = item['map'].get(sheet_answer)
+                else:
+                    c_ans = sheet_answer
+                
                 is_correct = (str(u_ans).strip().lower() == str(c_ans).strip().lower())
                 if is_correct: corrects += 1
                 logs.append({"question": item['q'], "user_ans": u_ans, "correct": is_correct, "correct_ans": c_ans})
+            
             ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
             st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
             background_tasks(st.session_state.full_name, st.session_state.selected_subject, st.session_state.category, corrects, len(st.session_state.test_items), ball)
