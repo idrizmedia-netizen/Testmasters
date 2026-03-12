@@ -27,9 +27,8 @@ except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
     st.stop()
 
-# --- 3. YORDAMCHI FUNKSIYALAR (Limit va xiralashishni oldini olish) ---
+# --- 3. YORDAMCHI FUNKSIYALAR ---
 
-# SAVOLLARNI KESHGA OLISH (Sahifa har yangilanganda CSVni qayta yuklamaydi)
 @st.cache_data(ttl=600)
 def load_questions():
     try:
@@ -43,7 +42,6 @@ def load_questions():
         st.error(f"Ma'lumot o'qishda xatolik: {e}")
         return None
 
-# NATIJALARNI KESHGA OLISH (429 xatosini oldini oladi)
 @st.cache_data(ttl=300)
 def get_results_cached():
     try:
@@ -53,7 +51,6 @@ def get_results_cached():
         return pd.DataFrame()
 
 def check_already_finished(name, subject):
-    # APIga murojaat qilmasdan keshdan tekshiradi
     df = get_results_cached()
     if not df.empty:
         df.columns = [str(c).strip() for c in df.columns]
@@ -65,7 +62,7 @@ def background_tasks(name, subject, corrects, total, ball):
     try:
         row = [datetime.now().strftime("%Y-%m-%d %H:%M"), str(name), str(subject), int(corrects), int(total - corrects), f"{ball}%"]
         result_sheet.append_row(row)
-        st.cache_data.clear() # Yangi natija yozilgach keshni tozalash
+        st.cache_data.clear() 
     except Exception as e:
         st.error(f"Google Sheets xatosi: {e}")
 
@@ -86,29 +83,26 @@ def apply_styles(subject="Default"):
     bg_url = bg_images.get(subject, bg_images["Default"])
     st.markdown(f"""
     <style>
-    /* Xiralashish (blur) effektini kamaytirish uchun CSS */
     #root > div:nth-child(1) > div.withScreencast > div > div {{ opacity: 1 !important; }}
-    .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; }}
-    .main-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); }}
-    div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-weight: 800 !important; border-radius: 15px !important; padding: 18px !important; }}
+    .stApp {{ background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{bg_url}") no-repeat center center fixed !important; background-size: cover !important; font-family: 'Inter', sans-serif; }}
+    .main-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 20px; }}
+    .analysis-card {{ background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid; }}
+    div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-size: 20px !important; font-weight: 800 !important; border-radius: 15px !important; padding: 18px !important; text-transform: uppercase; }}
     h1, h2, h3, p, label, .stMarkdown {{ color: white !important; }}
     </style>
     """, unsafe_allow_html=True)
 
 def show_html_timer():
     if st.session_state.get('page') == "TEST" and 'start_time' in st.session_state:
-        # Sahifani har 1 sekundda yangilaydi (Taymer uchun)
         st_autorefresh(interval=1000, key="timer_refresh")
         elapsed = time.time() - st.session_state.start_time
         remaining = max(0, int(st.session_state.total_time - elapsed))
-        
         st.sidebar.markdown(f"""
         <div style="background: rgba(0,201,255,0.1); padding:15px; border-radius:15px; border: 2px solid #00C9FF; text-align:center;">
             <h1 style="color:#00C9FF; margin:0; font-size:40px;">{remaining//60:02d}:{remaining%60:02d}</h1>
-            <p style="color:white; margin:0; font-size:12px;">VAQT QOLDI</p>
+            <p style="color:white; margin:0; font-weight:bold; font-size:12px;">VAQT QOLDI</p>
         </div>
         """, unsafe_allow_html=True)
-        
         if remaining <= 0:
             st.session_state.page = "HOME"
             st.rerun()
@@ -122,6 +116,22 @@ if st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1 style="color:#92FE9D; font-size:100px; margin:0;">{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
+    
+    # TAHLIL QISMI
+    with st.expander("🔍 Natijalar tahlili (Xatolarni ko'rish)"):
+        for log in st.session_state.user_logs:
+            border_color = "#92FE9D" if log['correct'] else "#FF4B4B"
+            # Agar javob xato bo'lsa, to'g'ri javobni ham ko'rsatadi
+            correct_ans_info = "" if log['correct'] else f"<p style='color:#92FE9D;'><b>To'g'ri javob:</b> {log['correct_ans']}</p>"
+            
+            st.markdown(f'''
+            <div class="analysis-card" style="border-left-color: {border_color};">
+                <p><b>Savol:</b> {log["question"]}</p>
+                <p>Sizning javobingiz: {log["user_ans"]}</p>
+                {correct_ans_info}
+            </div>
+            ''', unsafe_allow_html=True)
+            
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"):
         st.session_state.page = "HOME"; st.rerun()
 
@@ -136,6 +146,7 @@ elif st.session_state.page == "TEST":
             if item.get('image') and str(item['image']) != 'nan':
                 st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
+            st.markdown("---")
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             if None in user_answers.values():
                 st.error("⚠️ Barcha savollarni belgilang!")
@@ -146,7 +157,12 @@ elif st.session_state.page == "TEST":
                     c_ans = item['map'].get(str(item['c']).strip().upper(), item['c'])
                     is_correct = str(user_answers[i]).lower() == str(c_ans).lower()
                     if is_correct: corrects += 1
-                    logs.append({"question": item['q'], "user_ans": user_answers[i], "correct": is_correct, "correct_ans": c_ans})
+                    logs.append({
+                        "question": item['q'], 
+                        "user_ans": user_answers[i], 
+                        "correct": is_correct,
+                        "correct_ans": c_ans
+                    })
                 ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
                 st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
                 background_tasks(st.session_state.full_name, st.session_state.selected_subject, corrects, len(st.session_state.test_items), ball)
