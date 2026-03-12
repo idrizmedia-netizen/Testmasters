@@ -98,6 +98,7 @@ def apply_styles(subject="Default"):
     h1, h2, h3, p, label, .stMarkdown, .stText, .stRadio label {{ color: white !important; }}
     [data-testid="stSidebar"] {{ background-color: #1a1c22 !important; }}
     .main-card {{ background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); padding: 30px; border-radius: 20px; }}
+    .analysis-card {{ background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; margin-bottom: 10px; }}
     div.stButton > button {{ width: 100%; background: linear-gradient(135deg, #00C9FF 0%, #92FE9D 100%) !important; color: #001f3f !important; font-weight: 800 !important; }}
     </style>
     """, unsafe_allow_html=True)
@@ -109,6 +110,18 @@ if st.session_state.page == "RESULT":
     apply_styles()
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1>{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
+    
+    st.subheader("🔍 Natijalar tahlili")
+    for log in st.session_state.user_logs:
+        color = "#92FE9D" if log['correct'] else "#FF4B4B"
+        st.markdown(f"""
+        <div class="analysis-card" style="border-left: 5px solid {color};">
+            <p><b>Savol:</b> {log["question"]}</p>
+            <p>Sizning javobingiz: {log["user_ans"]}</p>
+            <p style='color:{color};'><b>To'g'ri javob:</b> {log["correct_ans"]}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): st.session_state.page = "HOME"; st.rerun()
 
 elif st.session_state.page == "TEST":
@@ -122,9 +135,16 @@ elif st.session_state.page == "TEST":
             if pd.notna(item['image']) and str(item['image']) != '0': st.image(item['image'])
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
-            corrects = sum(1 for i, item in enumerate(st.session_state.test_items) if str(user_answers[i]).lower() == str(item['map'].get(str(item['c']).upper(), item['c'])).lower())
+            logs = []
+            corrects = 0
+            for i, item in enumerate(st.session_state.test_items):
+                u_ans = user_answers[i]
+                c_ans = item['map'].get(str(item['c']).strip().upper())
+                is_correct = (str(u_ans).strip().lower() == str(c_ans).strip().lower())
+                if is_correct: corrects += 1
+                logs.append({"question": item['q'], "user_ans": u_ans, "correct": is_correct, "correct_ans": c_ans})
             ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
-            st.session_state.update({"final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
+            st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
             background_tasks(st.session_state.full_name, st.session_state.selected_subject, st.session_state.category, corrects, len(st.session_state.test_items), ball)
             st.rerun()
 
@@ -141,8 +161,8 @@ elif st.session_state.page == "HOME":
             if st.button("🚀 TESTNI BOSHLASH"):
                 sub_qs = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
                 sampled_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-                # Vaqtni avtomatik hisoblash
-                total_time = int(sampled_qs['Vaqt'].fillna(45).sum()) 
+                # Vaqtni to'g'ri hisoblash (NaN qiymatlarni raqamga o'tkazish)
+                total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
                 test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
                 st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
                 st.rerun()
