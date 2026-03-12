@@ -80,11 +80,29 @@ def show_smooth_timer(seconds):
 def apply_styles(subject="Default"):
     st.markdown(f"""
     <style>
+    /* Asosiy fon */
     .stApp {{ 
         background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("https://images.unsplash.com/photo-1510070112810-d4e9a46d9e91?q=80&w=2000") no-repeat center center fixed !important; 
         background-size: cover !important; 
     }}
-    /* Chiroyli Gradient Tugmalar */
+    
+    /* Barcha matnlarni oq va aniq ko'rinadigan qilish */
+    h1, h2, h3, p, label, .stMarkdown, .stText, div[role="radiogroup"] label {{ 
+        color: #ffffff !important; 
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8) !important;
+    }}
+    
+    /* Kategoriyalar (Radio tugmalar) uchun chiroyli quti uslubi */
+    div[role="radiogroup"] > label {{ 
+        background: rgba(255, 255, 255, 0.1) !important; 
+        border: 1px solid rgba(0, 201, 255, 0.5) !important;
+        border-radius: 12px !important;
+        padding: 10px 20px !important;
+        margin-bottom: 5px !important;
+        transition: 0.3s !important;
+    }}
+    
+    /* Gradient Tugmalar */
     div.stButton > button {{ 
         width: 100%; 
         border: none !important;
@@ -96,6 +114,9 @@ def apply_styles(subject="Default"):
         transition: transform 0.2s !important;
     }}
     div.stButton > button:hover {{ transform: scale(1.03); filter: brightness(1.1); }}
+    
+    /* Savollar yozuvini aniqroq qilish */
+    .stMarkdown p, .stForm p {{ font-size: 18px !important; line-height: 1.5 !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -163,7 +184,6 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
-    # Kategoriyalar qisqartirildi
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
     if category:
         if category == "Sertifikat":
