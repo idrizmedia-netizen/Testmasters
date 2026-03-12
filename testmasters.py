@@ -183,7 +183,8 @@ elif st.session_state.page == "HOME":
             top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10).copy()
             top10.insert(0, "№", range(1, len(top10) + 1))
             
-            st.table(top10[['№', 'Ism-familiya', 'Ball']])
+            # hide_index=True yordamida Google Sheet indekslari yashiriladi
+            st.dataframe(top10[['№', 'Ism-familiya', 'Ball']], hide_index=True, use_container_width=True)
         else: st.write("Hozircha natijalar yo'q.")
     
     category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
