@@ -11,29 +11,35 @@ from google.oauth2 import service_account
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
 
-# 2. SECRETS VA ULANISH (GSheetsConnection o'rniga barqaror gspread usuli)
+# 2. SECRETS VA ULANISH
 try:
     TELEGRAM_TOKEN = st.secrets["general"]["telegram_token"]
     CHAT_ID = st.secrets["general"]["chat_id"]
     
-    # GSheets ulanishi
     creds_dict = st.secrets["gcp_service_account"]
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=scope)
     gc = gspread.authorize(creds)
     
-    # Jadvalni ochish
     sh = gc.open_by_key("1s_Q6s_To2pI63gqqXWmGfkN_H2yIO42KIBA8G5b0B4U")
     result_sheet = sh.worksheet("Results")
 except Exception as e:
     st.error(f"Sozalamalarda xatolik: {e}")
     st.stop()
 
-# --- 3. YORDAMCHI FUNKSIYALAR ---
+# --- 3. YORDAMCHI FUNKSIYALAR (Keshlash qo'shildi) ---
+
+# Jadvalni 5 daqiqaga keshga olish (Limitni tejash uchun)
+@st.cache_data(ttl=300)
+def get_results_cached():
+    try:
+        data = result_sheet.get_all_records()
+        return pd.DataFrame(data)
+    except:
+        return pd.DataFrame()
 
 def load_questions():
     try:
-        # Original CSV URL
         csv_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTA1Ws84mZCqZvmj53YWxR3Xd7_Qd8V-Ro_w_79eklEXyDOt0BP6Vr8WJUodsXUo3WYb3sYMBijM5k9/pub?output=csv"
         df = pd.read_csv(csv_url)
         if df is not None and not df.empty:
@@ -49,9 +55,8 @@ def load_questions():
 
 def check_already_finished(name, subject):
     try:
-        # Gspread orqali o'qish
-        data = result_sheet.get_all_records()
-        df = pd.DataFrame(data)
+        # Har sekundda APIga bormasdan, keshdan tekshiradi
+        df = get_results_cached()
         if not df.empty:
             df.columns = [str(c).strip() for c in df.columns]
             exists = df[(df['Ism-familiya'].astype(str) == str(name)) & (df['Fan'].astype(str) == str(subject))]
@@ -60,7 +65,6 @@ def check_already_finished(name, subject):
     return False
 
 def background_tasks(name, subject, corrects, total, ball):
-    # 1. YANGI MA'LUMOTNI TAYYORLASH VA YOZISH (gspread orqali)
     try:
         row = [
             datetime.now().strftime("%Y-%m-%d %H:%M"), 
@@ -71,16 +75,19 @@ def background_tasks(name, subject, corrects, total, ball):
             f"{ball}%"
         ]
         result_sheet.append_row(row)
+        # Natija yozilgandan keyin keshni tozalaymiz, shunda keyingi tekshiruvda yangi ma'lumot chiqadi
+        st.cache_data.clear()
     except Exception as e:
         st.error(f"Google Sheets xatosi: {e}")
 
-    # 2. TELEGRAM XABARNOMASI
     try:
         text = f"🏆 YANGI NATIJA!\n👤: {name}\n📚: {subject}\n✅: {corrects}\n❌: {total-corrects}\n📊: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
                       json={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: 
         pass
+
+# --- QOLGAN QISMLAR O'ZGARISHSIZ ---
 
 def apply_styles(subject="Default"):
     bg_images = {
