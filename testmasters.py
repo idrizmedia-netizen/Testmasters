@@ -7,6 +7,7 @@ from datetime import datetime
 import streamlit.components.v1 as components
 import gspread
 from google.oauth2 import service_account
+import plotly.express as px  # Grafiklar uchun
 
 # 1. SAHIFA SOZLAMALARI
 st.set_page_config(page_title="Testmasters Online", page_icon="🎓", layout="centered")
@@ -112,19 +113,41 @@ if st.session_state.page == "RESULT":
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1>{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
     
-    # Natijalar tahlili endi tugma (expander) ichida
+    # 1. Natijalar tahlili (expander ichida)
     with st.expander("🔍 Natijalar tahlilini ko'rish"):
         for log in st.session_state.user_logs:
             color = "#92FE9D" if log['correct'] else "#FF4B4B"
             st.markdown(f"""
-            <div class="analysis-card" style="border-left: 5px solid {color};">
+            <div class="analysis-card" style="border-left: 5px solid {color}; padding: 10px; margin-bottom: 10px; background: rgba(255,255,255,0.05);">
                 <p><b>Savol:</b> {log["question"]}</p>
                 <p>Sizning javobingiz: {log["user_ans"]}</p>
-                <p style='color:{color};'><b>To'g'ri javob:</b> {log["correct_ans"]}</p>
+                <p style='color:{color};'><b>To'g'ri javob:</b> {log['correct_ans']}</p>
             </div>
             """, unsafe_allow_html=True)
-        
-    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): st.session_state.page = "HOME"; st.rerun()
+    
+    # 2. Grafik tahlil qismi
+    st.markdown("---")
+    if st.button("📊 GRAFIK TAHLILNI KO'RISH"):
+        df_history = get_results_cached()
+        if not df_history.empty:
+            my_history = df_history[df_history['Ism-familiya'] == res["name"]].copy()
+            my_history['Ball_Num'] = my_history['Ball'].astype(str).str.replace('%', '').astype(float)
+            
+            fig = px.bar(my_history, x='Sana', y='Ball_Num', 
+                         title=f"{res['name']} ning test natijalari dinamikasi",
+                         labels={'Ball_Num': 'Ball (%)', 'Sana': 'Topshirilgan vaqt'},
+                         color='Ball_Num', 
+                         color_continuous_scale='Viridis',
+                         text='Ball_Num')
+            fig.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Hozircha grafik uchun yetarli ma'lumot yo'q.")
+    
+    # 3. Asosiy sahifaga qaytish
+    if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): 
+        st.session_state.page = "HOME"; 
+        st.rerun()
 
 elif st.session_state.page == "TEST":
     apply_styles(st.session_state.selected_subject)
