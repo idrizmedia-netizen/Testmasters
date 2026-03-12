@@ -61,7 +61,8 @@ def background_tasks(name, subject, category, corrects, total, ball):
         st.cache_data.clear() 
     except: pass
     try:
-        text = f"🏆 YANGI NATIJA!\n👤: {name}\n📂: {category}\n📚: {subject}\n📊: {ball}%"
+        # Telegram xabari endi to'g'ri va noto'g'ri javoblarni ko'rsatadi
+        text = f"🏆 YANGI NATIJA!\n👤: {name}\n📂: {category}\n📚: {subject}\n✅ To'g'ri: {corrects}\n❌ Noto'g'ri: {total - corrects}\n📊 Ball: {ball}%"
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": text}, timeout=5)
     except: pass
 
@@ -111,16 +112,17 @@ if st.session_state.page == "RESULT":
     res = st.session_state.final_score
     st.markdown(f'<div class="main-card" style="text-align:center;"><h1>{res["ball"]}%</h1><h2>{res["name"]}</h2></div>', unsafe_allow_html=True)
     
-    st.subheader("🔍 Natijalar tahlili")
-    for log in st.session_state.user_logs:
-        color = "#92FE9D" if log['correct'] else "#FF4B4B"
-        st.markdown(f"""
-        <div class="analysis-card" style="border-left: 5px solid {color};">
-            <p><b>Savol:</b> {log["question"]}</p>
-            <p>Sizning javobingiz: {log["user_ans"]}</p>
-            <p style='color:{color};'><b>To'g'ri javob:</b> {log["correct_ans"]}</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # Natijalar tahlili endi tugma (expander) ichida
+    with st.expander("🔍 Natijalar tahlilini ko'rish"):
+        for log in st.session_state.user_logs:
+            color = "#92FE9D" if log['correct'] else "#FF4B4B"
+            st.markdown(f"""
+            <div class="analysis-card" style="border-left: 5px solid {color};">
+                <p><b>Savol:</b> {log["question"]}</p>
+                <p>Sizning javobingiz: {log["user_ans"]}</p>
+                <p style='color:{color};'><b>To'g'ri javob:</b> {log["correct_ans"]}</p>
+            </div>
+            """, unsafe_allow_html=True)
         
     if st.button("🔄 ASOSIY SAHIFAGA QAYTISH"): st.session_state.page = "HOME"; st.rerun()
 
@@ -161,7 +163,6 @@ elif st.session_state.page == "HOME":
             if st.button("🚀 TESTNI BOSHLASH"):
                 sub_qs = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)]
                 sampled_qs = sub_qs.sample(n=min(len(sub_qs), 30))
-                # Vaqtni to'g'ri hisoblash (NaN qiymatlarni raqamga o'tkazish)
                 total_time = int(pd.to_numeric(sampled_qs['Vaqt'], errors='coerce').fillna(45).sum()) 
                 test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
                 st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
