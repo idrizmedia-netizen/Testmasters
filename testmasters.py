@@ -196,23 +196,22 @@ elif st.session_state.page == "HOME":
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             
-          if st.button("🚀 TESTNI BOSHLASH"):
+         if st.button("🚀 TESTNI BOSHLASH"):
                 if not u_name: 
                     st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
                     # 1. PARAMETRLARNI BELGILASH
-                    # O'quvchi: 30 ta savol, Attestatsiya: 40 ta, Sertifikat: 45 ta
                     config = {
                         "O'quvchi": {"count": 30},
-                        "Attestatsiya": {"count": 40, "time_fixed": 90}, # 90 daqiqa
-                        "Sertifikat": {"count": 45, "time_fixed": 150}   # 150 daqiqa
+                        "Attestatsiya": {"count": 40, "time_fixed": 90},
+                        "Sertifikat": {"count": 45, "time_fixed": 150}
                     }
                     
                     limit = config[category]["count"]
                     sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
                     sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(2)
                     
-                    # 2. SAVOLLARNI TANLASH (Tasodifiy)
+                    # 2. SAVOLLARNI TANLASH
                     if len(sub_qs_all) <= limit:
                         sampled_qs = sub_qs_all
                     else:
@@ -220,10 +219,8 @@ elif st.session_state.page == "HOME":
                     
                     # 3. VAQTNI HISOBLASH
                     if category == "O'quvchi":
-                        # O'quvchi uchun: savollardagi vaqt yig'indisi (daqiqa -> sekund)
                         total_time = int(sampled_qs['Vaqt'].sum() * 60)
                     else:
-                        # Qolganlar uchun: qat'iy vaqt (daqiqa -> sekund)
                         total_time = config[category]["time_fixed"] * 60
                     
                     # 4. TEST ITEMLARINI SHAKLLANTIRISH
