@@ -196,38 +196,54 @@ elif st.session_state.page == "HOME":
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             
-            if st.button("🚀 TESTNI BOSHLASH"):
+          if st.button("🚀 TESTNI BOSHLASH"):
                 if not u_name: 
                     st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    # Bazani tayyorlash va vaqtni raqamga o'tkazish
+                    # 1. PARAMETRLARNI BELGILASH
+                    # O'quvchi: 30 ta savol, Attestatsiya: 40 ta, Sertifikat: 45 ta
+                    config = {
+                        "O'quvchi": {"count": 30},
+                        "Attestatsiya": {"count": 40, "time_fixed": 90}, # 90 daqiqa
+                        "Sertifikat": {"count": 45, "time_fixed": 150}   # 150 daqiqa
+                    }
+                    
+                    limit = config[category]["count"]
                     sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
-                    sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(45)
+                    sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(2)
                     
-                    # Qiyinchilik darajalariga ajratish
-                    oson = sub_qs_all[sub_qs_all['Vaqt'] <= 30]
-                    orta = sub_qs_all[(sub_qs_all['Vaqt'] > 30) & (sub_qs_all['Vaqt'] <= 60)]
-                    qiyin = sub_qs_all[sub_qs_all['Vaqt'] > 60]
+                    # 2. SAVOLLARNI TANLASH (Tasodifiy)
+                    if len(sub_qs_all) <= limit:
+                        sampled_qs = sub_qs_all
+                    else:
+                        sampled_qs = sub_qs_all.sample(n=limit)
                     
-                    # Balansli tanlov: har biridan 10 tadan
-                    p1 = oson.sample(n=min(len(oson), 10)) if not oson.empty else pd.DataFrame()
-                    p2 = orta.sample(n=min(len(orta), 10)) if not orta.empty else pd.DataFrame()
-                    p3 = qiyin.sample(n=min(len(qiyin), 10)) if not qiyin.empty else pd.DataFrame()
+                    # 3. VAQTNI HISOBLASH
+                    if category == "O'quvchi":
+                        # O'quvchi uchun: savollardagi vaqt yig'indisi (daqiqa -> sekund)
+                        total_time = int(sampled_qs['Vaqt'].sum() * 60)
+                    else:
+                        # Qolganlar uchun: qat'iy vaqt (daqiqa -> sekund)
+                        total_time = config[category]["time_fixed"] * 60
                     
-                    pool = pd.concat([p1, p2, p3])
+                    # 4. TEST ITEMLARINI SHAKLLANTIRISH
+                    test_items = []
+                    for _, r in sampled_qs.iterrows():
+                        options = [str(v) for v in {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}.values() if str(v) != 'nan']
+                        test_items.append({
+                            "q": r['Savol'], 
+                            "o": options, 
+                            "c": r['Javob'], 
+                            "map": {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}, 
+                            "image": r.get('Rasm')
+                        })
                     
-                    # Agar 30 taga yetmasa, qolganidan to'ldirish
-                    if len(pool) < 30:
-                        others = sub_qs_all.drop(pool.index)
-                        needed = 30 - len(pool)
-                        fill = others.sample(n=min(len(others), needed))
-                        pool = pd.concat([pool, fill])
-                    
-                    # Yakuniy aralashtirish
-                    sampled_qs = pool.sample(frac=1)
-                    total_time = int(sampled_qs['Vaqt'].sum()) 
-                    
-                    test_items = [{"q": r['Savol'], "o": [v for v in {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}.values() if str(v)!='nan'], "c": r['Javob'], "map": {'A':str(r.get('A','')),'B':str(r.get('B','')),'C':str(r.get('C','')),'D':str(r.get('D',''))}, "image": r.get('Rasm')} for _, r in sampled_qs.iterrows()]
-                    
-                    st.session_state.update({"full_name": u_name, "category": category, "selected_subject": selected_subject, "test_items": test_items, "total_time": total_time, "page": "TEST"})
+                    st.session_state.update({
+                        "full_name": u_name, 
+                        "category": category, 
+                        "selected_subject": selected_subject, 
+                        "test_items": test_items, 
+                        "total_time": total_time, 
+                        "page": "TEST"
+                    })
                     st.rerun()
