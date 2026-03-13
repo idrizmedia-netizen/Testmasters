@@ -171,6 +171,7 @@ elif st.session_state.page == "TEST":
 elif st.session_state.page == "HOME":
     apply_styles()
     st.markdown("<h1 style='text-align:center;'>🎓 ZiyoMap Online</h1>", unsafe_allow_html=True)
+    
     with st.expander("🏆 FANLAR BO'YICHA REYTING"):
         df_all = get_results_cached()
         if not df_all.empty:
@@ -179,15 +180,14 @@ elif st.session_state.page == "HOME":
             selected_rating_subject = st.selectbox("Reytingni ko'rish uchun fanni tanlang:", all_subjects)
             rating_df = df_all[df_all['Fan'] == selected_rating_subject]
             
-            # Reytingni tartiblash va tartib raqami qo'shish
             top10 = rating_df.sort_values(by='Ball_Num', ascending=False).head(10).copy()
             top10.insert(0, "№", range(1, len(top10) + 1))
             
-            # hide_index=True yordamida Google Sheet indekslari yashiriladi
             st.dataframe(top10[['№', 'Ism-familiya', 'Ball']], hide_index=True, use_container_width=True)
-        else: st.write("Hozircha natijalar yo'q.")
+        else: 
+            st.write("Hozircha natijalar yo'q.")
     
-   category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
+    category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
     
     if category:
         u_name = st.text_input("Ism-familiyangizni kiriting:")
