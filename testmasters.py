@@ -187,7 +187,7 @@ elif st.session_state.page == "HOME":
             st.dataframe(top10[['№', 'Ism-familiya', 'Ball']], hide_index=True, use_container_width=True)
         else: st.write("Hozircha natijalar yo'q.")
     
-    category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
+   category = st.radio("Bo'limni tanlang:", ["O'quvchi", "Attestatsiya", "Sertifikat"], index=None)
     
     if category:
         u_name = st.text_input("Ism-familiyangizni kiriting:")
@@ -196,51 +196,40 @@ elif st.session_state.page == "HOME":
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             
-      if st.button("🚀 TESTNI BOSHLASH"):
+            if st.button("🚀 TESTNI BOSHLASH"):
                 if not u_name:
                     st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    # 1. PARAMETRLAR
                     config = {
                         "O'quvchi": {"count": 30},
-                        "Attestatsiya": {"count": 40, "time_fixed": 5400}, 
+                        "Attestatsiya": {"count": 40, "time_fixed": 5400},
                         "Sertifikat": {"count": 45, "time_fixed": 9000}
                     }
-                    
                     limit = config[category]["count"]
                     sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
                     sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(60)
                     
-                    # 2. SAVOLLARNI TANLASH
                     if len(sub_qs_all) <= limit:
                         sampled_qs = sub_qs_all
                     else:
                         sampled_qs = sub_qs_all.sample(n=limit)
                     
-                    # 3. VAQTNI HISOBLASH (Sekundda)
                     if category == "O'quvchi":
                         total_time = int(sampled_qs['Vaqt'].sum())
                     else:
                         total_time = config[category]["time_fixed"]
                     
-                    # 4. TESTNI TAYYORLASH
                     test_items = []
                     for _, r in sampled_qs.iterrows():
                         options = [str(v) for v in {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}.values() if str(v) != 'nan']
                         test_items.append({
-                            "q": r['Savol'], 
-                            "o": options, 
-                            "c": r['Javob'], 
+                            "q": r['Savol'], "o": options, "c": r['Javob'], 
                             "map": {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}, 
                             "image": r.get('Rasm')
                         })
                     
                     st.session_state.update({
-                        "full_name": u_name, 
-                        "category": category, 
-                        "selected_subject": selected_subject, 
-                        "test_items": test_items, 
-                        "total_time": total_time, 
-                        "page": "TEST"
+                        "full_name": u_name, "category": category, "selected_subject": selected_subject, 
+                        "test_items": test_items, "total_time": total_time, "page": "TEST"
                     })
                     st.rerun()
