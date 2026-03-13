@@ -196,13 +196,11 @@ elif st.session_state.page == "HOME":
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             
-       if st.button("🚀 TESTNI BOSHLASH"):
-                if not u_name: 
+      if st.button("🚀 TESTNI BOSHLASH"):
+                if not u_name:
                     st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    # 1. PARAMETRLARNI BELGILASH
-                    # Attestatsiya va Sertifikat uchun qat'iy vaqt (sekundda)
-                    # 90 daqiqa = 5400 sekund, 150 daqiqa = 9000 sekund
+                    # 1. PARAMETRLAR
                     config = {
                         "O'quvchi": {"count": 30},
                         "Attestatsiya": {"count": 40, "time_fixed": 5400}, 
@@ -211,9 +209,6 @@ elif st.session_state.page == "HOME":
                     
                     limit = config[category]["count"]
                     sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
-                    
-                    # Bazadagi vaqt ustunini raqamga o'tkazish (sekundda bo'lgani uchun o'zgarishsiz qoldiramiz)
-                    # Agar vaqt yozilmagan bo'lsa, har bir savolga default 60 sekund beramiz
                     sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(60)
                     
                     # 2. SAVOLLARNI TANLASH
@@ -222,15 +217,13 @@ elif st.session_state.page == "HOME":
                     else:
                         sampled_qs = sub_qs_all.sample(n=limit)
                     
-                    # 3. VAQTNI HISOBLASH
+                    # 3. VAQTNI HISOBLASH (Sekundda)
                     if category == "O'quvchi":
-                        # O'quvchi: savollardagi sekundlarni qo'shamiz
                         total_time = int(sampled_qs['Vaqt'].sum())
                     else:
-                        # Attestatsiya va Sertifikat: qat'iy vaqt
                         total_time = config[category]["time_fixed"]
                     
-                    # 4. TEST ITEMLARINI SHAKLLANTIRISH
+                    # 4. TESTNI TAYYORLASH
                     test_items = []
                     for _, r in sampled_qs.iterrows():
                         options = [str(v) for v in {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}.values() if str(v) != 'nan']
