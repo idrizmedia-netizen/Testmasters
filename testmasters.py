@@ -196,11 +196,11 @@ elif st.session_state.page == "HOME":
             filtered_subs = q_df[q_df['Tur'] == category]['Fan'].dropna().unique().tolist()
             selected_subject = st.selectbox("Fanni tanlang:", sorted(filtered_subs))
             
-         if st.button("🚀 TESTNI BOSHLASH"):
+        if st.button("🚀 TESTNI BOSHLASH"):
                 if not u_name: 
                     st.error("Iltimos, ism-familiyangizni kiriting!")
                 else:
-                    # 1. PARAMETRLARNI BELGILASH
+                    # Sozlamalar
                     config = {
                         "O'quvchi": {"count": 30},
                         "Attestatsiya": {"count": 40, "time_fixed": 90},
@@ -211,19 +211,19 @@ elif st.session_state.page == "HOME":
                     sub_qs_all = q_df[(q_df['Fan'] == selected_subject) & (q_df['Tur'] == category)].copy()
                     sub_qs_all['Vaqt'] = pd.to_numeric(sub_qs_all['Vaqt'], errors='coerce').fillna(2)
                     
-                    # 2. SAVOLLARNI TANLASH
+                    # Savollarni tanlash
                     if len(sub_qs_all) <= limit:
                         sampled_qs = sub_qs_all
                     else:
                         sampled_qs = sub_qs_all.sample(n=limit)
                     
-                    # 3. VAQTNI HISOBLASH
+                    # Vaqtni hisoblash
                     if category == "O'quvchi":
                         total_time = int(sampled_qs['Vaqt'].sum() * 60)
                     else:
                         total_time = config[category]["time_fixed"] * 60
                     
-                    # 4. TEST ITEMLARINI SHAKLLANTIRISH
+                    # Test elementlarini tayyorlash
                     test_items = []
                     for _, r in sampled_qs.iterrows():
                         options = [str(v) for v in {'A':str(r.get('A','')), 'B':str(r.get('B','')), 'C':str(r.get('C','')), 'D':str(r.get('D',''))}.values() if str(v) != 'nan']
