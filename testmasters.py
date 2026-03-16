@@ -152,16 +152,18 @@ elif st.session_state.page == "TEST":
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
             
-            # RASMLARNI O'QISH QISMI (Tuzatildi)
-            if pd.notna(item['image']) and str(item['image']) != '0':
-                images = [img.strip() for img in str(item['image']).split(',')]
-                for img_url in images:
-                    if img_url: 
+            # --- RASMLARNI O'QISH QISMI (Yangi va ishonchli variant) ---
+            raw_data = item.get('image')
+            if pd.notna(raw_data) and str(raw_data).strip() not in ['0', '', 'nan']:
+                # Linklarni vergul bilan ajratamiz va har birini tozalaymiz
+                images_list = [img.strip() for img in str(raw_data).split(',')]
+                for img_url in images_list:
+                    if img_url:
                         st.image(img_url)
+            # ------------------------------------------------------------
             
             user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
         
-        # Tugma form ichida, lekin for tsiklidan tashqarida bo'lishi kerak
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             logs = []
             corrects = 0
