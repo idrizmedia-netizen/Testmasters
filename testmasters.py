@@ -151,13 +151,17 @@ elif st.session_state.page == "TEST":
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
-   # Savoldan keyin rasm chiqarish qismi
-if pd.notna(item['image']) and str(item['image']) != '0':
-    # E'tibor bering, bu qatorlar "if" dan o'ngroqda joylashdi
-    images = [img.strip() for img in str(item['image']).split(',')]
-    for img_url in images:
-        if img_url: 
-            st.image(img_url)
+            
+            # RASMLARNI O'QISH QISMI (Tuzatildi)
+            if pd.notna(item['image']) and str(item['image']) != '0':
+                images = [img.strip() for img in str(item['image']).split(',')]
+                for img_url in images:
+                    if img_url: 
+                        st.image(img_url)
+            
+            user_answers[i] = st.radio("Tanlang:", item['o'], index=None, key=f"q_{i}")
+        
+        # Tugma form ichida, lekin for tsiklidan tashqarida bo'lishi kerak
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             logs = []
             corrects = 0
@@ -168,6 +172,7 @@ if pd.notna(item['image']) and str(item['image']) != '0':
                 is_correct = (str(u_ans).strip().lower() == str(c_ans).strip().lower())
                 if is_correct: corrects += 1
                 logs.append({"question": item['q'], "user_ans": u_ans, "correct": is_correct, "correct_ans": c_ans})
+            
             ball = round((corrects / len(st.session_state.test_items)) * 100, 1)
             st.session_state.update({"user_logs": logs, "final_score": {"name": st.session_state.full_name, "ball": ball}, "page": "RESULT"})
             background_tasks(st.session_state.full_name, st.session_state.selected_subject, st.session_state.category, corrects, len(st.session_state.test_items), ball)
