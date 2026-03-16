@@ -151,11 +151,12 @@ elif st.session_state.page == "TEST":
         user_answers = {}
         for i, item in enumerate(st.session_state.test_items):
             st.markdown(f"**{i+1}. {item['q']}**")
-            if pd.notna(item['image']) and str(item['image']) != '0':
-    # Linklarni vergul bo'yicha ajratib olamiz
+   # Savoldan keyin rasm chiqarish qismi
+if pd.notna(item['image']) and str(item['image']) != '0':
+    # E'tibor bering, bu qatorlar "if" dan o'ngroqda joylashdi
     images = [img.strip() for img in str(item['image']).split(',')]
     for img_url in images:
-        if img_url:  # Bo'sh emasligini tekshiramiz
+        if img_url: 
             st.image(img_url)
         if st.form_submit_button("🏁 TESTNI TUGATISH"):
             logs = []
